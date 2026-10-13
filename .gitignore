@@ -1,0 +1,4 @@
+
+
+# Public VYRA beta website download (exception to *.exe)
+!website/downloads/VYRA.exe
