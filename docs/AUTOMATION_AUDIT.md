@@ -5,7 +5,7 @@ Only VYRA was inspected and changed. No unrelated Codex chats or projects were e
 | Automation | Finding | Change and behavior |
 | --- | --- | --- |
 | Windows release | Checkout action reference was truncated; hard-coded 1.1 tag; new Go files did not trigger builds; website binaries and manifest were never refreshed | Verified full action commit references; VERSION drives builds; all desktop and worker sources trigger; one build produces setup, portable files and a checksum manifest; website assets are committed together |
-| Website publishing | Pages only reacted to source pushes; commits made by GitHub's token don't start new push workflows | Release explicitly dispatches Pages; Vercel can deploy the updated website commit |
+| Website publishing | Pages was not enabled; commits made by GitHub's token don't start new push workflows | Release dispatches Pages explicitly; the Pages workflow checks availability and clearly skips optional hosting when disabled. Vercel deploys the website commit |
 | Download links | Mutable installer path could change after an old app fetched its checksum | Updates use a versioned installer path; landing-page downloads retain a stable convenience link |
 | Desktop update checks | Startup and six-hour checks existed | Preserved; installer download remains explicitly initiated by the user and hash-verified |
 | AI tasks | Agents page was a placeholder | Persisted manual, once and interval tasks with results, cancellation and total run limits |
@@ -24,3 +24,5 @@ Clips schedules run while the video worker is running. Posting stays review-firs
 ## Verification
 
 Go integration tests cover semantic streaming events, interrupted streams, provider error redaction, transactional connection validation, saved project context/preferences, task persistence, cancellation, concurrency, budgets, crash recovery and corrupted storage. Clips tests cover subtitle safety/timing, OAuth state handling, vault encryption and atomic publishing claims. Browser verification exercises project creation, preferences, task creation/run/results, streaming and caption rendering with a local provider fixture. The fixture validates the wiring without using a real API key or incurring API charges.
+
+The VYRA 1.2 source was pushed to GitHub, CI passed, and the Windows release published real EXE/ZIP assets. The public Vercel website, stable installer download, portable download, and versioned update manifest returned HTTP 200. The downloaded setup checksum matched its manifest. The optional Pages job originally reported that Pages was not enabled; its availability check now avoids treating unused hosting as a failed release.
