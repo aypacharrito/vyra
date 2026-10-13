@@ -20,3 +20,18 @@ def test_subtitles_escape():
         subtitles_ass([{'start':3.0,'end':4.0,'word':'bad{\\}text'}],2,6,p)
         t=p.read_text(encoding='utf-8-sig')
         assert 'badtext' in t and 'Dialogue:' in t
+
+
+def test_spoken_word_highlight_follows_word_timestamps():
+    with tempfile.TemporaryDirectory() as d:
+        p = Path(d) / 'captions.ass'
+        subtitles_ass([
+            {'start': 5.0, 'end': 5.4, 'word': 'Hello'},
+            {'start': 5.5, 'end': 6.0, 'word': 'VYRA'},
+        ], 5.0, 7.0, p)
+        text = p.read_text(encoding='utf-8-sig')
+        events = [line for line in text.splitlines() if line.startswith('Dialogue:')]
+        assert len(events) == 2
+        assert '0:00:00.00,0:00:00.50' in events[0]
+        assert r'{\c&H00D9F579&}Hello{\c&H00FFFFFF&} VYRA' in events[0]
+        assert r'Hello {\c&H00D9F579&}VYRA{\c&H00FFFFFF&}' in events[1]

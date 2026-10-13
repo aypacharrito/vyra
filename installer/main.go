@@ -22,6 +22,8 @@ import (
 //go:embed payload.zip
 var bundled embed.FS
 
+var version = "1.2.0"
+
 var msgbox = syscall.NewLazyDLL("user32.dll").NewProc("MessageBoxW")
 
 func dialog(title, body string, flags uintptr) int {
@@ -160,7 +162,7 @@ func install() error {
 	}
 	// Visible under Windows Settings > Apps > Installed Apps, no admin permission.
 	arp := `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\VYRA`
-	for _, kv := range [][2]string{{"DisplayName", "VYRA"}, {"DisplayVersion", "1.1.0"}, {"Publisher", "VYRA Open Beta"}, {"InstallLocation", dst}, {"DisplayIcon", filepath.Join(dst, "VYRA.exe")}, {"UninstallString", `"` + uninstall + `" --uninstall`}} {
+	for _, kv := range [][2]string{{"DisplayName", "VYRA"}, {"DisplayVersion", version}, {"Publisher", "VYRA Open Beta"}, {"InstallLocation", dst}, {"DisplayIcon", filepath.Join(dst, "VYRA.exe")}, {"UninstallString", `"` + uninstall + `" --uninstall`}} {
 		_ = exec.Command("reg.exe", "add", arp, "/v", kv[0], "/t", "REG_SZ", "/d", kv[1], "/f").Run()
 	}
 	return nil

@@ -49,13 +49,7 @@ func windowsCrypt(input []byte, encrypt bool) ([]byte, error) {
 	copy(result, unsafe.Slice(out.data, int(out.size)))
 	return result, nil
 }
-func keyFile() string {
-	path := os.Getenv("APPDATA")
-	if path == "" {
-		path = os.TempDir()
-	}
-	return filepath.Join(path, "VYRA", "api-key.dpapi")
-}
+func keyFile() string { return filepath.Join(userDataDir(), "api-key.dpapi") }
 func saveKey(key string) error {
 	v, e := windowsCrypt([]byte(key), true)
 	if e != nil {
@@ -107,5 +101,20 @@ func openDesktop(url string) {
 	_ = c.Start()
 }
 func showExisting() { openDesktop("http://127.0.0.1:48791/") }
+
+func openClipsSetup() error {
+	path, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	setup := filepath.Join(filepath.Dir(path), "SETUP_CLIPS.bat")
+	if _, err = os.Stat(setup); err != nil {
+		return err
+	}
+	cmd := exec.Command("cmd.exe", "/c", setup)
+	cmd.Dir = filepath.Dir(path)
+	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: 0x00000010}
+	return cmd.Start()
+}
 
 var _ = errors.New

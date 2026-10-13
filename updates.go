@@ -99,7 +99,11 @@ func (u *updateState) setError(s string) {
 func (u *updateState) result() map[string]any {
 	u.mu.RLock()
 	defer u.mu.RUnlock()
-	return map[string]any{"version": version, "latest": u.manifest.Version, "available": newerVersion(u.manifest.Version, version), "notes": u.manifest.Notes, "lastChecked": u.lastChecked.UTC().Format(time.RFC3339), "error": u.errorText, "automaticChecks": true, "automaticInstall": false}
+	checked := ""
+	if !u.lastChecked.IsZero() {
+		checked = u.lastChecked.UTC().Format(time.RFC3339)
+	}
+	return map[string]any{"version": version, "latest": u.manifest.Version, "available": newerVersion(u.manifest.Version, version), "notes": u.manifest.Notes, "lastChecked": checked, "error": u.errorText, "automaticChecks": true, "automaticInstall": false}
 }
 func (a *app) checkUpdates(w http.ResponseWriter, r *http.Request) {
 	if err := updates.check(r.Context()); err != nil {
@@ -109,6 +113,11 @@ func (a *app) checkUpdates(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, updates.result())
 }
 func (a *app) installUpdate(w http.ResponseWriter, r *http.Request) {
+	if !a.installMu.TryLock() {
+		writeJSON(w, 409, map[string]string{"error": "An update is already being downloaded."})
+		return
+	}
+	defer a.installMu.Unlock()
 	updates.mu.RLock()
 	m := updates.manifest
 	updates.mu.RUnlock()
@@ -171,7 +180,7 @@ func (a *app) openAITest(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, map[string]string{"error": "Save your OpenAI API key in Settings first."})
 		return
 	}
-	if model != "gpt-5-mini" && model != "gpt-4o-mini" {
+	if !validTextModel(model) {
 		writeJSON(w, 400, map[string]string{"error": "Choose a supported model"})
 		return
 	}
@@ -202,7 +211,7 @@ func (a *app) openAITest(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = ctx
 	a.mu.Lock()
-	if a.apiKey == key {
+	if a.apiKey == key && a.model == model {
 		a.verified = true
 	}
 	a.mu.Unlock()

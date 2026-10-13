@@ -5,3 +5,25 @@
 
 # VYRA beta installer download tracked in Git
 !website/downloads/VYRA-Setup.exe
+
+.build/
+installer/payload.zip
+installer/staging/
+portable/
+VYRA.exe
+VYRA-Setup.exe
+VYRA-Windows-Beta.zip
+**/.env
+**/.env.*
+!**/.env.example
+**/.local/
+**/.venv/
+**/__pycache__/
+**/*.pyc
+**/.pytest_cache/
+clips-worker/work/
+clips-worker/output/
+work/
+output/
+*.dpapi
+!website/downloads/**

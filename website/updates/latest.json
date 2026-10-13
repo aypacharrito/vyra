@@ -1,6 +1,6 @@
 {
-  "version": "1.1.0",
-  "url": "https://vyra-five-lac.vercel.app/downloads/VYRA-Setup.exe",
-  "sha256": "fde2b12ae2c6e01402d8e85b96c12672740e36366733bcf8773bc5c275f0e27a",
-  "notes": "Windows installer, desktop shortcuts, OpenAI connection test and automatic update checks."
+  "version": "1.2.0",
+  "url": "https://vyra-five-lac.vercel.app/downloads/1.2.0/VYRA-Setup.exe",
+  "sha256": "d7fcef7da39e823f98fab694b1875c1ea2963e5159b963c06f4a210e02fe1a64",
+  "notes": "Live voice captions, streaming AI, project context, scheduled AI tasks, word-highlighted Clips captions and reliable installer updates."
 }

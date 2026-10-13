@@ -61,11 +61,19 @@ def subtitles_ass(words: list[dict], clip_start: float, clip_end: float, path: P
     def emit():
         if not group:
             return
-        begin = max(0.0, group[0]["start"] - clip_start)
-        end = min(clip_end - clip_start, group[-1]["end"] - clip_start + .15)
-        caption = safe_text(" ".join(w["word"] for w in group))
-        if caption and end > begin:
-            lines.append(f"Dialogue: 0,{time_ass(begin)},{time_ass(end)},Pop,,0,0,0,,{caption}")
+        # Highlight the spoken word using the actual transcription timestamps.
+        # Escape each word before adding ASS tags; transcript text is never syntax.
+        for index, word in enumerate(group):
+            begin = max(0.0, word["start"] - clip_start)
+            next_start = group[index + 1]["start"] if index + 1 < len(group) else word["end"] + .15
+            end = min(clip_end - clip_start, next_start - clip_start)
+            caption = " ".join(
+                (r"{\c&H00D9F579&}" + safe_text(w["word"]) + r"{\c&H00FFFFFF&}")
+                if i == index else safe_text(w["word"])
+                for i, w in enumerate(group)
+            )
+            if caption and end > begin:
+                lines.append(f"Dialogue: 0,{time_ass(begin)},{time_ass(end)},Pop,,0,0,0,,{caption}")
     for w in relevant:
         if group and (len(group) >= 5 or w["start"] - group[-1]["end"] > .55 or len(" ".join(x["word"] for x in group)) > 32):
             emit()

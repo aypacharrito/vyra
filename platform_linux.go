@@ -21,3 +21,5 @@ func openDesktop(url string) {
 	}
 }
 func showExisting() { openDesktop("http://127.0.0.1:48791/") }
+
+func openClipsSetup() error { return fmt.Errorf("Clips setup is available in the Windows build") }

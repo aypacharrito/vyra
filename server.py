@@ -1,5 +1,6 @@
 """VYRA Clips: loopback-only video worker, account connections, review-first publishing."""
 from __future__ import annotations
+from contextlib import contextmanager
 import json
 import os
 import re
@@ -14,14 +15,17 @@ from urllib.parse import quote
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from clip_engine import process_video
 from social import Connectors, Vault, instagram_post, tiktok_post, youtube_upload
 
 BASE = Path(__file__).resolve().parent
 load_dotenv(BASE / '.env')
-WORK = BASE / 'work'
-OUTPUT = BASE / 'output'
-LOCAL = BASE / '.local'
+DATA = Path(os.getenv('VYRA_CLIPS_DATA_DIR') or str(BASE))
+DATA.mkdir(parents=True, exist_ok=True)
+WORK = DATA / 'work'
+OUTPUT = DATA / 'output'
+LOCAL = DATA / '.local'
 for folder in (WORK, OUTPUT, LOCAL):
     folder.mkdir(exist_ok=True)
 VAULT = Vault(LOCAL)
@@ -33,8 +37,10 @@ JOBS: dict[str,dict] = {}
 ALLOWED = {'.mp4','.mov','.mkv','.webm'}
 NAME = re.compile(r'^clip_\d{2}\.mp4$')
 app = FastAPI(title='VYRA Clips / Local', docs_url=None, redoc_url=None)
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=['127.0.0.1', 'localhost'])
 
 
+@contextmanager
 def database():
     conn = sqlite3.connect(DB, timeout=20)
     conn.row_factory = sqlite3.Row
@@ -45,10 +51,20 @@ def database():
         status TEXT NOT NULL, remote_json TEXT, error TEXT,
         created_at TEXT NOT NULL)''')
     conn.commit()
-    return conn
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 with database() as conn:
-    pass
+    # A previous process may have ended after the provider accepted an upload.
+    # Keep it for review instead of duplicating the submission after restart.
+    conn.execute("UPDATE postings SET status='needs_review', error='Worker closed during submission. Check the platform before trying again.' WHERE status='sending'")
+    conn.commit()
 
 
 def utc_now():
@@ -104,10 +120,11 @@ def handle_post(row):
 
 def deliver(post_id):
     with database() as conn:
-        row=conn.execute('SELECT * FROM postings WHERE id=?',(post_id,)).fetchone()
-        if not row or row['status']!='approved':
+        # The claim must be atomic across the schedule thread and Publish now.
+        claim=conn.execute("UPDATE postings SET status='sending' WHERE id=? AND status='approved'",(post_id,))
+        if claim.rowcount != 1:
             return
-        conn.execute('UPDATE postings SET status=? WHERE id=?',('sending',post_id))
+        row=conn.execute('SELECT * FROM postings WHERE id=?',(post_id,)).fetchone()
         conn.commit()
     try:
         response=handle_post(dict(row))
@@ -136,7 +153,8 @@ def worker():
             pass
         time.sleep(12)
 
-threading.Thread(target=worker,daemon=True).start()
+if os.getenv('VYRA_DISABLE_SCHEDULER') != '1':
+    threading.Thread(target=worker,daemon=True).start()
 
 
 @app.middleware('http')
@@ -178,12 +196,10 @@ async def start_job(file: UploadFile=File(...),count:int=Form(5),
     suffix=Path(file.filename or '').suffix.lower()
     if suffix not in ALLOWED:
         raise HTTPException(400,'Choose MP4, MOV, MKV, or WebM.')
-    with LOCK:
-        busy=any(j.get('status')=='processing' for j in JOBS.values())
-    if busy:
-        raise HTTPException(429,'Local video worker already busy.')
     job_id=uuid.uuid4().hex[:18]
     with LOCK:
+        if any(j.get('status')=='processing' for j in JOBS.values()):
+            raise HTTPException(429,'Local video worker already busy.')
         JOBS[job_id]={'id':job_id,'status':'processing','message':'Receiving source','progress':0}
     incoming=WORK/(job_id+suffix)
     total=0
@@ -320,10 +336,6 @@ def make_post(body,scheduled):
             raise HTTPException(400,'Choose a future date and time with a timezone offset.')
     else:
         when=datetime.now(timezone.utc)
-    with database() as conn:
-        duplicate=conn.execute("SELECT id FROM postings WHERE job_id=? AND filename=? AND platform=? AND status IN ('approved','sending','submitted') LIMIT 1",(job_id,filename,provider)).fetchone()
-        if duplicate:
-            raise HTTPException(409,'This clip already has a queued or submitted post for this account. Check activity first.')
     if provider=='instagram' and not all(os.getenv(k) for k in ('R2_ACCOUNT_ID','R2_ACCESS_KEY_ID','R2_SECRET_ACCESS_KEY','R2_BUCKET')):
         raise HTTPException(400,'Configure a private R2 staging bucket for Instagram in .env first.')
     record={'id':uuid.uuid4().hex[:20],'job_id':job_id,'filename':filename,
@@ -331,6 +343,10 @@ def make_post(body,scheduled):
             'scheduled_at':when.astimezone(timezone.utc).isoformat(),'status':'approved',
             'remote_json':None,'error':None,'created_at':utc_now()}
     with database() as conn:
+        conn.execute('BEGIN IMMEDIATE')
+        duplicate=conn.execute("SELECT id FROM postings WHERE job_id=? AND filename=? AND platform=? AND status IN ('approved','sending','submitted') LIMIT 1",(job_id,filename,provider)).fetchone()
+        if duplicate:
+            raise HTTPException(409,'This clip already has a queued or submitted post for this account. Check activity first.')
         conn.execute('INSERT INTO postings VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',tuple(record.values()))
         conn.commit()
     return record
