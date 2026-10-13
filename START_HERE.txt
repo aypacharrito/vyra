@@ -1,0 +1,28 @@
+VYRA CLIPS 0.2 — START HERE
+============================
+
+1) Extract this ZIP somewhere on your Windows PC.
+2) Install Python 3.11+ and FFmpeg, if needed.
+3) Double-click run_windows.bat.
+4) The first run opens .env — paste your OPENAI_API_KEY value, save, close.
+5) Double-click run_windows.bat again.
+6) In your browser open http://127.0.0.1:8765
+7) Upload your OWN or AUTHORIZED MP4. Preview/export vertical clips.
+
+THEN CONNECT SOCIAL CHANNELS — your secret OpenAI key is not a social login:
+
+YouTube first: Google Cloud OAuth app -> YouTube Data API v3 enabled ->
+  YOUTUBE_CLIENT_ID / YOUTUBE_CLIENT_SECRET in .env -> restart -> Connect.
+
+Instagram second: Instagram professional account, Meta app and approved OAuth,
+  HTTPS callback bridge deployed from ig-callback-bridge/ to your own Vercel,
+  plus a separate R2 staging bucket -> add .env variables -> Connect.
+
+TikTok third: TikTok Developer app, Desktop Login Kit and video.publish permission
+  (approved) -> TIKTOK_CLIENT_KEY / TIKTOK_CLIENT_SECRET -> Connect.
+  Explicit confirmation required on each TikTok post; unaudited apps private-only.
+
+Nothing posts without you reviewing and confirming the selected clip first.
+Scheduled YouTube/Instagram posts run only when the VYRA app stays running.
+
+Read README.md for detailed, linked setup steps and limitations.
