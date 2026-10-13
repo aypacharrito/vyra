@@ -180,6 +180,8 @@ func install(report func(int, string)) error {
 			return fmt.Errorf("could not register VYRA in Installed Apps: %w", err)
 		}
 	}
+	// Refresh Explorer's cached shortcut icons after replacing an older build.
+	syscall.NewLazyDLL("shell32.dll").NewProc("SHChangeNotify").Call(0x08000000, 0, 0, 0)
 	return nil
 }
 func uninstall() error {
