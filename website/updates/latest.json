@@ -1,0 +1,6 @@
+{
+  "version": "1.1.0",
+  "url": "https://vyra-five-lac.vercel.app/downloads/VYRA-Setup.exe",
+  "sha256": "fde2b12ae2c6e01402d8e85b96c12672740e36366733bcf8773bc5c275f0e27a",
+  "notes": "Windows installer, desktop shortcuts, OpenAI connection test and automatic update checks."
+}

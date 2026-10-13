@@ -23,16 +23,17 @@ import (
 //go:embed web/*
 var content embed.FS
 
-const version = "1.0.0"
+var version = "1.1.0"
 
 type app struct {
-	mu     sync.RWMutex
-	apiKey string
-	model  string
-	csrf   string
-	server *http.Server
-	worker *exec.Cmd
-	client *http.Client
+	mu       sync.RWMutex
+	apiKey   string
+	verified bool
+	model    string
+	csrf     string
+	server   *http.Server
+	worker   *exec.Cmd
+	client   *http.Client
 }
 
 func token() string {
@@ -76,9 +77,10 @@ func (a *app) routes() http.Handler {
 	mux.HandleFunc("GET /api/status", func(w http.ResponseWriter, r *http.Request) {
 		a.mu.RLock()
 		configured := a.apiKey != ""
+		verified := a.verified
 		model := a.model
 		a.mu.RUnlock()
-		writeJSON(w, 200, map[string]any{"version": version, "local": true, "openai": configured, "model": model, "worker": workerAvailable()})
+		writeJSON(w, 200, map[string]any{"version": version, "local": true, "openai": configured, "verified": verified, "model": model, "worker": workerAvailable()})
 	})
 	mux.HandleFunc("POST /api/settings", func(w http.ResponseWriter, r *http.Request) {
 		var v struct {
@@ -97,6 +99,7 @@ func (a *app) routes() http.Handler {
 		a.mu.Lock()
 		if key != "" {
 			a.apiKey = key
+			a.verified = false
 		}
 		if v.Model != "" {
 			if v.Model != "gpt-5-mini" && v.Model != "gpt-4o-mini" {
@@ -119,11 +122,16 @@ func (a *app) routes() http.Handler {
 	mux.HandleFunc("DELETE /api/settings/key", func(w http.ResponseWriter, r *http.Request) {
 		a.mu.Lock()
 		a.apiKey = ""
+		a.verified = false
 		a.mu.Unlock()
 		_ = deleteKey()
 		writeJSON(w, 200, map[string]bool{"removed": true})
 	})
 	mux.HandleFunc("POST /api/chat", a.chat)
+	mux.HandleFunc("POST /api/openai/test", a.openAITest)
+	mux.HandleFunc("GET /api/updates", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, updates.result()) })
+	mux.HandleFunc("POST /api/updates/check", a.checkUpdates)
+	mux.HandleFunc("POST /api/updates/install", a.installUpdate)
 	mux.HandleFunc("POST /api/clips/launch", a.launchClips)
 	mux.HandleFunc("GET /api/clips/status", func(w http.ResponseWriter, r *http.Request) {
 		client := http.Client{Timeout: 1200 * time.Millisecond}
@@ -369,6 +377,7 @@ func main() {
 	defer l.Close()
 	a.server = &http.Server{Handler: a.routes(), ReadHeaderTimeout: 5 * time.Second}
 	go openDesktop("http://127.0.0.1:48791/")
+	a.startUpdateChecks()
 	if err := a.server.Serve(l); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Println(err)
 	}

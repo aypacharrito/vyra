@@ -1,53 +1,77 @@
-name: Build and publish VYRA Windows beta
+name: Build and publish VYRA Windows installer
 on:
   push:
     branches: [main]
-    paths-ignore: ['**/*.md']
+    paths:
+      - 'main.go'
+      - 'updates.go'
+      - 'web/**'
+      - 'installer/**'
+      - '.github/workflows/windows-release.yml'
   workflow_dispatch:
 permissions:
   contents: write
 concurrency:
-  group: vyra-beta-release
+  group: vyra-release
   cancel-in-progress: false
 jobs:
   windows:
     runs-on: windows-latest
     steps:
-      - name: Check out VYRA source
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9 # v4.2.2
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9 # v4.2.2
         with:
           persist-credentials: false
-      - name: Install Go
-        uses: actions/setup-go@v5
+      - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: false
-      - name: Run tests
+      - name: Test desktop
         run: go test ./...
-      - name: Build Windows executable
+      - name: Compile desktop app
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
           go build -trimpath -ldflags '-H=windowsgui -s -w' -o VYRA.exe .
-          if ($LASTEXITCODE -ne 0 -or !(Test-Path VYRA.exe)) { throw 'Windows build failed' }
-      - name: Create download ZIP
+          if ($LASTEXITCODE -ne 0) {throw 'Desktop build failed'}
+      - name: Create installer payload from current source
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
-          New-Item -ItemType Directory -Force package | Out-Null
-          Copy-Item VYRA.exe, SETUP_CLIPS.bat, README.md -Destination package
-          Copy-Item clips-worker -Destination package -Recurse
-          Compress-Archive -Path package/* -DestinationPath VYRA-Windows-Beta.zip -CompressionLevel Optimal -Force
-      - name: Publish beta release and download links
+          New-Item -ItemType Directory -Force installer/staging | Out-Null
+          Copy-Item VYRA.exe, SETUP_CLIPS.bat, README.md -Destination installer/staging -Force
+          Copy-Item clips-worker -Destination installer/staging -Recurse -Force
+          if (Test-Path installer/staging/clips-worker/.env) {Remove-Item installer/staging/clips-worker/.env -Force}
+          Compress-Archive -Path installer/staging/* -DestinationPath installer/payload.zip -CompressionLevel Optimal -Force
+      - name: Compile Windows setup
+        shell: pwsh
+        run: |
+          Push-Location installer
+          go build -trimpath -ldflags '-H=windowsgui -s -w' -o ../VYRA-Setup.exe .
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path ../VYRA-Setup.exe)) {throw 'Setup build failed'}
+          Pop-Location
+      - name: Create optional portable archive
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force portable | Out-Null
+          Copy-Item VYRA.exe, SETUP_CLIPS.bat, README.md -Destination portable
+          Copy-Item clips-worker -Destination portable -Recurse
+          Compress-Archive -Path portable/* -DestinationPath VYRA-Windows-Beta.zip -CompressionLevel Optimal -Force
+      - name: Upload run artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: VYRA-Windows-Build
+          path: |
+            VYRA-Setup.exe
+            VYRA.exe
+            VYRA-Windows-Beta.zip
+      - name: Publish beta release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $ErrorActionPreference = 'Stop'
-          gh release view v1.0.0-beta.1 --repo $env:GITHUB_REPOSITORY *> $null
+          $tag = 'v1.1.0-beta.1'
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
           if ($LASTEXITCODE -eq 0) {
-            gh release upload v1.0.0-beta.1 VYRA.exe VYRA-Windows-Beta.zip --clobber --repo $env:GITHUB_REPOSITORY
+            gh release upload $tag VYRA-Setup.exe VYRA.exe VYRA-Windows-Beta.zip --clobber --repo $env:GITHUB_REPOSITORY
           } else {
-            gh release create v1.0.0-beta.1 VYRA.exe VYRA-Windows-Beta.zip --repo $env:GITHUB_REPOSITORY --title 'VYRA Open Beta v1.0.0' --notes 'Free preview for Windows. VYRA chat requires each user’s own OpenAI API key. Clips requires Python and FFmpeg. Unsigned executable. The social posting connectors require separate platform authorization.' --prerelease --latest=false --target main
+            gh release create $tag VYRA-Setup.exe VYRA.exe VYRA-Windows-Beta.zip --title 'VYRA 1.1 Open Beta' --notes 'Signed publisher identity is not yet configured. OpenAI requires your own key. Video worker needs Python and FFmpeg.' --prerelease --target main --repo $env:GITHUB_REPOSITORY
           }
-          if ($LASTEXITCODE -ne 0) { throw 'Release publication failed' }
+          if ($LASTEXITCODE -ne 0) {throw 'Release upload failed'}

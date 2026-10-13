@@ -2,3 +2,6 @@
 
 # Public VYRA beta website download (exception to *.exe)
 !website/downloads/VYRA.exe
+
+# VYRA beta installer download tracked in Git
+!website/downloads/VYRA-Setup.exe
