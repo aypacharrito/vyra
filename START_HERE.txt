@@ -1,28 +1,19 @@
-VYRA CLIPS 0.2 — START HERE
-============================
+VYRA Publishing Completion — GitHub Actions Fix
+================================================
+Your main VYRA repository already has website/, web/, main.go and clips-worker/. DO NOT overwrite those folders.
 
-1) Extract this ZIP somewhere on your Windows PC.
-2) Install Python 3.11+ and FFmpeg, if needed.
-3) Double-click run_windows.bat.
-4) The first run opens .env — paste your OPENAI_API_KEY value, save, close.
-5) Double-click run_windows.bat again.
-6) In your browser open http://127.0.0.1:8765
-7) Upload your OWN or AUTHORIZED MP4. Preview/export vertical clips.
+A. ADD THESE TWO FILES TO https://github.com/aypacharrito/vyra ON main:
+   .github/workflows/windows-release.yml
+   .github/workflows/pages.yml
 
-THEN CONNECT SOCIAL CHANNELS — your secret OpenAI key is not a social login:
+   Quick way: GitHub repo > Add file > Create new file. Type the full relative path (including .github/workflows/) in the filename box, paste the matching .yml file text, commit to main. Repeat for second file. This also creates the folders as needed.
 
-YouTube first: Google Cloud OAuth app -> YouTube Data API v3 enabled ->
-  YOUTUBE_CLIENT_ID / YOUTUBE_CLIENT_SECRET in .env -> restart -> Connect.
+B. WINDOWS EXE: GitHub > Settings > Actions > General > Workflow permissions > Read and write permissions if that setting is available. Open Actions > Build and publish VYRA Windows beta > Run workflow (main). Wait for successful run. Confirm both files exist at:
+   https://github.com/aypacharrito/vyra/releases/download/v1.0.0-beta.1/VYRA.exe
+   https://github.com/aypacharrito/vyra/releases/download/v1.0.0-beta.1/VYRA-Windows-Beta.zip
 
-Instagram second: Instagram professional account, Meta app and approved OAuth,
-  HTTPS callback bridge deployed from ig-callback-bridge/ to your own Vercel,
-  plus a separate R2 staging bucket -> add .env variables -> Connect.
+C. GITHUB PAGES (optional — Vercel can be the main website): GitHub > Settings > Pages > Build and deployment source = GitHub Actions. Run Deploy VYRA website to GitHub Pages.
 
-TikTok third: TikTok Developer app, Desktop Login Kit and video.publish permission
-  (approved) -> TIKTOK_CLIENT_KEY / TIKTOK_CLIENT_SECRET -> Connect.
-  Explicit confirmation required on each TikTok post; unaudited apps private-only.
+D. VERCEL: Existing VYRA project now uses static-site settings and a new production deployment. Website: https://vyra-five-lac.vercel.app
 
-Nothing posts without you reviewing and confirming the selected clip first.
-Scheduled YouTube/Instagram posts run only when the VYRA app stays running.
-
-Read README.md for detailed, linked setup steps and limitations.
+STATUS: Vercel latest deploy READY, Windows release NOT YET published. These workflows must be committed and run. This package is only the missing publishing automation; it does not change existing AI chat, Clips, or account connection code. TikTok/Instagram/YouTube authorization remains unconfigured.
