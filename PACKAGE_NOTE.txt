@@ -1,0 +1,15 @@
+VYRA v1 - Windows portable app
+
+FIRST USE
+1. Extract the full ZIP into a folder (e.g. Documents\VYRA).
+2. Double-click VYRA.exe, allowing the Windows app to open in Microsoft Edge app mode.
+3. Settings & connections -> enter your OPENAI API key (starts sk-).
+4. Open Intelligence for AI chat. This feature needs internet and API billing.
+5. OPTIONAL: To run VYRA Clips, install Python 3.11+ and FFmpeg. Run SETUP_CLIPS.bat once, then use VYRA Clips -> Launch Clips Studio.
+6. Settings -> Exit VYRA stops the background local server.
+
+This is a genuine compiled Windows 64-bit portable executable, NOT a signed .msi installer or Electron app.
+Its window uses Edge's browser engine locally. No OpenAI key is inside the EXE.
+Instagram, TikTok, and YouTube publishing require platform credentials, approval, and user authorization. The live integrations have not been end-to-end tested.
+
+The website source is in the separate VYRA-Website-v1.zip archive; it is not deployed yet.

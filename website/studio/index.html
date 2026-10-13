@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="theme-color" content="#0c1018"><meta name="vyra-session" content="PREVIEW_DISABLED"><title>VYRA — Your intelligence, your control</title><link rel="stylesheet" href="../styles.css"></head>
+<body><div id="app" class="app">
+<aside id="side" class="sidebar">
+  <div class="brand-row"><div class="brand-mark"><svg viewBox="0 0 48 48"><path d="M24 3 44 15v18L24 45 4 33V15z"/><path d="m14 18 10 17 10-17"/><circle cx="24" cy="12" r="2"/></svg></div><div class="brand-lockup"><b>VYRA</b><small>PERSONAL INTELLIGENCE</small></div><button class="iconbtn collapse" id="collapse" aria-label="Toggle sidebar" title="Collapse sidebar">☰</button></div>
+  <button class="new-chat" id="new-chat"><span class="plus">＋</span> New conversation <kbd>Ctrl K</kbd></button>
+  <div class="nav-label">WORKSPACE</div>
+  <nav class="primary-nav" aria-label="Main navigation">
+  <button data-view="home" class="nav-item selected"><span class="ico">⌂</span><span>Discover</span></button>
+  <button data-view="chat" class="nav-item"><span class="ico">◈</span><span>Intelligence</span><span class="nav-dot"></span></button>
+  <button data-view="clips" class="nav-item"><span class="ico">▷</span><span>VYRA Clips</span><span class="nav-chip">STUDIO</span></button>
+  <button data-view="projects" class="nav-item"><span class="ico">▦</span><span>Projects</span></button>
+  <button data-view="agents" class="nav-item"><span class="ico">✧</span><span>Agents</span><span class="soon-label">SOON</span></button>
+  </nav>
+  <div class="section-head"><span class="nav-label">YOUR CONVERSATIONS</span><button id="clear-history" title="Clear history" class="tinybtn">···</button></div>
+  <div id="history" class="history"></div>
+  <div class="sidebar-bottom"><button data-view="settings" class="nav-item"><span class="ico">⚙</span><span>Settings & connections</span></button><div class="profile"><div class="avatar">V</div><div><strong>Personal workspace</strong><small>Local-first · Private by design</small></div><span class="online"></span></div></div>
+</aside>
+<div class="main-frame">
+<header class="topbar"><div class="breadcrumbs"><span class="dim">WORKSPACE</span><span class="sep">/</span><b id="breadcrumb">DISCOVER</b></div><div class="top-actions"><span id="top-status" class="status-tag"><span class="status-led"></span> OpenAI not connected</span><button id="top-settings" class="top-icon" title="Settings">⚙</button><div class="top-avatar">V</div></div></header>
+<main id="main" class="main-content"></main>
+<footer class="bottom-bar"><span class="bottom-left"><span class="signal"></span> VYRA SYSTEM · <span id="runtime-label">LOCAL DESKTOP</span></span><span>BUILT FOR WHAT'S NEXT <span class="small-star">✦</span></span></footer>
+</div>
+</div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script src="../app.js" defer></script></body></html>
