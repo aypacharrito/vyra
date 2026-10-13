@@ -22,7 +22,7 @@ import (
 //go:embed payload.zip
 var bundled embed.FS
 
-var version = "1.2.0"
+var version = "1.2.1"
 
 var msgbox = syscall.NewLazyDLL("user32.dll").NewProc("MessageBoxW")
 
@@ -40,7 +40,8 @@ func appDir() string {
 	return filepath.Join(root, "Programs", "VYRA")
 }
 func payload() ([]byte, error) { return bundled.ReadFile("payload.zip") }
-func extract(dst string) error {
+func extract(dst string) error { return extractProgress(dst, func(int, string) {}) }
+func extractProgress(dst string, report func(int, string)) error {
 	raw, err := payload()
 	if err != nil {
 		return err
@@ -49,9 +50,9 @@ func extract(dst string) error {
 	if err != nil {
 		return err
 	}
-	for _, f := range zr.File {
+	for index, f := range zr.File {
 		normalized := filepath.Clean(filepath.FromSlash(f.Name))
-		if filepath.IsAbs(normalized) || normalized == ".." || strings.HasPrefix(normalized, ".."+string(os.PathSeparator)) {
+		if filepath.IsAbs(normalized) || filepath.VolumeName(normalized) != "" || strings.Contains(normalized, ":") || normalized == ".." || strings.HasPrefix(normalized, ".."+string(os.PathSeparator)) || f.Mode()&os.ModeSymlink != 0 {
 			return errors.New("invalid installer payload")
 		}
 		target := filepath.Join(dst, normalized)
@@ -101,6 +102,7 @@ func extract(dst string) error {
 		if !replaced {
 			return fmt.Errorf("could not replace %s; close VYRA and retry", filepath.Base(target))
 		}
+		report(10+(index+1)*65/len(zr.File), "Installing your workspace…")
 	}
 	return nil
 }
@@ -123,7 +125,7 @@ $s.Save()
 		return err
 	}
 	defer os.Remove(psPath)
-	cmd := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", psPath)
+	cmd := hiddenCommand("powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-File", psPath)
 	cmd.Env = append(os.Environ(), "VYRA_SHORTCUT="+lnkPath, "VYRA_TARGET="+target, "VYRA_DESC="+desc, "VYRA_IS_DESKTOP="+fmt.Sprint(strings.HasSuffix(lnkPath, "Desktop\\VYRA.lnk") || strings.HasSuffix(lnkPath, "Desktop/VYRA.lnk")), "VYRA_ARGS="+map[bool]string{true: "--uninstall", false: ""}[strings.Contains(lnkPath, "Uninstall VYRA.lnk")])
 	return cmd.Run()
 }
@@ -132,12 +134,13 @@ func paths() (string, string) {
 	start := filepath.Join(os.Getenv("APPDATA"), "Microsoft", "Windows", "Start Menu", "Programs", "VYRA")
 	return filepath.Join(home, "Desktop", "VYRA.lnk"), start
 }
-func install() error {
+func install(report func(int, string)) error {
 	dst := appDir()
+	report(5, "Preparing VYRA for this Windows account…")
 	if err := os.MkdirAll(dst, 0755); err != nil {
 		return err
 	}
-	if err := extract(dst); err != nil {
+	if err := extractProgress(dst, report); err != nil {
 		return err
 	}
 	self, err := os.Executable()
@@ -145,51 +148,80 @@ func install() error {
 		return err
 	}
 	uninstall := filepath.Join(dst, "Uninstall-VYRA.exe")
-	if b, err := os.ReadFile(self); err == nil {
-		if err := os.WriteFile(uninstall, b, 0700); err != nil {
-			return err
-		}
+	b, err := os.ReadFile(self)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(uninstall, b, 0700); err != nil {
+		return err
 	}
 	desktop, start := paths()
-	if err := shortcut(filepath.Join(os.TempDir(), "vyra-shortcut.ps1"), desktop, filepath.Join(dst, "VYRA.exe"), "VYRA Intelligence"); err != nil {
+	report(78, "Adding Desktop and Start Menu shortcuts…")
+	tmp, err := os.MkdirTemp("", "vyra-setup-")
+	if err != nil {
 		return err
 	}
-	if err := shortcut(filepath.Join(os.TempDir(), "vyra-shortcut.ps1"), filepath.Join(start, "VYRA.lnk"), filepath.Join(dst, "VYRA.exe"), "VYRA Intelligence"); err != nil {
+	defer os.RemoveAll(tmp)
+	psPath := filepath.Join(tmp, "shortcut.ps1")
+	if err := shortcut(psPath, desktop, filepath.Join(dst, "VYRA.exe"), "VYRA Intelligence"); err != nil {
 		return err
 	}
-	if err := shortcut(filepath.Join(os.TempDir(), "vyra-shortcut.ps1"), filepath.Join(start, "Uninstall VYRA.lnk"), uninstall, "Remove VYRA"); err != nil {
+	if err := shortcut(psPath, filepath.Join(start, "VYRA.lnk"), filepath.Join(dst, "VYRA.exe"), "VYRA Intelligence"); err != nil {
+		return err
+	}
+	if err := shortcut(psPath, filepath.Join(start, "Uninstall VYRA.lnk"), uninstall, "Remove VYRA"); err != nil {
 		return err
 	}
 	// Visible under Windows Settings > Apps > Installed Apps, no admin permission.
 	arp := `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\VYRA`
+	report(92, "Finishing your installation…")
 	for _, kv := range [][2]string{{"DisplayName", "VYRA"}, {"DisplayVersion", version}, {"Publisher", "VYRA Open Beta"}, {"InstallLocation", dst}, {"DisplayIcon", filepath.Join(dst, "VYRA.exe")}, {"UninstallString", `"` + uninstall + `" --uninstall`}} {
-		_ = exec.Command("reg.exe", "add", arp, "/v", kv[0], "/t", "REG_SZ", "/d", kv[1], "/f").Run()
+		if err := hiddenCommand("reg.exe", "add", arp, "/v", kv[0], "/t", "REG_SZ", "/d", kv[1], "/f").Run(); err != nil {
+			return fmt.Errorf("could not register VYRA in Installed Apps: %w", err)
+		}
 	}
 	return nil
 }
 func uninstall() error {
 	desktop, start := paths()
-	_ = exec.Command("reg.exe", "delete", `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\VYRA`, "/f").Run()
-	_ = exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-Command", `$p=(New-Object -ComObject WScript.Shell).SpecialFolders('Desktop');Remove-Item -LiteralPath (Join-Path $p 'VYRA.lnk') -ErrorAction SilentlyContinue`).Run()
+	_ = hiddenCommand("reg.exe", "delete", `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\VYRA`, "/f").Run()
+	_ = hiddenCommand("powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", `$p=(New-Object -ComObject WScript.Shell).SpecialFolders('Desktop');Remove-Item -LiteralPath (Join-Path $p 'VYRA.lnk') -ErrorAction SilentlyContinue`).Run()
 	_ = os.Remove(desktop)
 	_ = os.RemoveAll(start)
 	dir := appDir()
 	// The installer can't remove its own running executable. Clean it up just after exit.
-	script := filepath.Join(os.TempDir(), "vyra-cleanup.ps1")
+	tmp, err := os.MkdirTemp("", "vyra-cleanup-")
+	if err != nil {
+		return err
+	}
+	script := filepath.Join(tmp, "cleanup.ps1")
 	content := `Start-Sleep -Seconds 3
 for($n=0;$n -lt 15;$n++){try{Remove-Item -LiteralPath $env:VYRA_REMOVE -Force -Recurse -ErrorAction Stop; break}catch{Start-Sleep -Seconds 1}}
 Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath (Split-Path $PSCommandPath) -Force -ErrorAction SilentlyContinue
 `
 	if err := os.WriteFile(script, []byte(content), 0600); err != nil {
 		return err
 	}
-	c := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-File", script)
+	c := hiddenCommand("powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-File", script)
 	c.Env = append(os.Environ(), "VYRA_REMOVE="+dir)
 	return c.Start()
 }
 func main() {
-	auto := len(os.Args) > 1 && os.Args[1] == "--auto-update"
-	remove := len(os.Args) > 1 && os.Args[1] == "--uninstall"
+	var auto, remove, preview bool
+	for _, arg := range os.Args[1:] {
+		switch arg {
+		case "--auto-update":
+			auto = true
+		case "--uninstall":
+			remove = true
+		case "--preview":
+			preview = true
+		}
+	}
+	if preview {
+		remove = false
+	}
 	if remove {
 		if dialog("Remove VYRA?", "Uninstall VYRA from this Windows account? Your saved OpenAI key and conversations will stay under your user profile.", 0x24) != 6 {
 			return
@@ -201,19 +233,18 @@ func main() {
 		}
 		return
 	}
-	if !auto && dialog("Install VYRA", "Install or update VYRA in your Windows user account? This creates Desktop and Start Menu shortcuts and includes VYRA Clips files.", 0x24) != 6 {
-		return
-	}
-	if auto {
-		time.Sleep(1700 * time.Millisecond)
-	}
-	if err := install(); err != nil {
-		dialog("VYRA Setup Failed", err.Error(), 0x10)
+	if err := runSetup(auto, preview); err != nil {
+		dialog("VYRA Setup", err.Error(), 0x10)
 		os.Exit(1)
 	}
-	dialog("VYRA Installed", "VYRA is installed! You can open it from your Desktop or Start Menu. Connect OpenAI in Settings using your own API key.", 0x40)
-	app := filepath.Join(appDir(), "VYRA.exe")
-	if err := exec.Command(app).Start(); err != nil {
-		dialog("VYRA", "Installation succeeded, but VYRA couldn't start automatically. Open it from your Desktop.", 0x30)
+	if setupUI.exitCode != 0 {
+		os.Exit(setupUI.exitCode)
 	}
+}
+
+// GUI subsystem alone does not hide console programs started by setup.
+func hiddenCommand(name string, args ...string) *exec.Cmd {
+	c := exec.Command(name, args...)
+	c.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x08000000}
+	return c
 }

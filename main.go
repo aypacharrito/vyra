@@ -21,7 +21,7 @@ import (
 //go:embed web/*
 var content embed.FS
 
-var version = "1.2.0"
+var version = "1.2.1"
 
 type app struct {
 	mu        sync.RWMutex
@@ -80,6 +80,11 @@ func (a *app) routes() http.Handler {
 	mux.HandleFunc("GET /styles.css", func(w http.ResponseWriter, r *http.Request) {
 		serveEmbedded(w, "web/styles.css", "text/css; charset=utf-8")
 	})
+	for path, mime := range map[string]string{"icon.svg": "image/svg+xml", "icon.png": "image/png", "favicon.ico": "image/x-icon"} {
+		mux.HandleFunc("GET /"+path, func(w http.ResponseWriter, r *http.Request) {
+			serveEmbedded(w, "web/"+path, mime)
+		})
+	}
 	mux.HandleFunc("GET /api/status", func(w http.ResponseWriter, r *http.Request) {
 		a.mu.RLock()
 		configured := a.apiKey != ""

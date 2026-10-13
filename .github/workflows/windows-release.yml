@@ -2,7 +2,7 @@ name: Build and publish VYRA Windows installer
 on:
   push:
     branches: [main]
-    paths: ['*.go', 'go.mod', 'VERSION', 'web/**', 'installer/**', 'clips-worker/**', 'scripts/**', 'README.md', 'RELEASE_NOTES.md', 'SETUP_CLIPS.bat', '.github/workflows/windows-release.yml']
+    paths: ['*.go', 'go.mod', 'VERSION', 'web/**', 'winres/**', 'installer/**', 'clips-worker/**', 'scripts/**', 'README.md', 'RELEASE_NOTES.md', 'SETUP_CLIPS.bat', '.github/workflows/windows-release.yml']
   workflow_dispatch:
 permissions:
   contents: write

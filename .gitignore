@@ -7,6 +7,8 @@
 !website/downloads/VYRA-Setup.exe
 
 .build/
+rsrc_windows_*.syso
+installer/rsrc_windows_*.syso
 installer/payload.zip
 installer/staging/
 portable/

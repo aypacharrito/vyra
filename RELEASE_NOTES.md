@@ -1,4 +1,11 @@
-# VYRA 1.2 Open Beta
+# VYRA 1.2.1 Open Beta
+
+- A native, branded Windows setup window with installation progress, accessible buttons, retry after failure and automatic reopening after an update.
+- Silent PowerShell and registry helpers during installation and removal, so setup no longer flashes command windows.
+- Multi-size VYRA icons embedded in the desktop app and installer, used by Windows shortcuts and the desktop window's favicon. Windows file properties now show the product name and release version.
+- OpenAI connection status refreshes when a VYRA window regains focus and while it is visible. Saving or testing a connection in one window updates the other windows without restarting.
+
+Includes the VYRA 1.2 features:
 
 - Streaming OpenAI replies with Stop, visible partial answers, readable code, Copy and Export.
 - Live microphone dictation with on-screen text when the browser supports it, plus recorded-audio transcription through OpenAI.

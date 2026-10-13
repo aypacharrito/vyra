@@ -14,6 +14,17 @@ $vyraStage = Join-Path $vyraRoot ('.build\stage-' + [guid]::NewGuid().ToString('
 New-Item -ItemType Directory -Path $vyraStage,$vyraOutput -Force | Out-Null
 Push-Location $vyraRoot
 try {
+	$vyraTools = Join-Path $vyraRoot '.build\tools'
+	New-Item -ItemType Directory -Path $vyraTools -Force | Out-Null
+	$vyraOldGOBIN = $env:GOBIN
+	try {
+		$env:GOBIN = $vyraTools
+		& $GoExecutable install github.com/tc-hib/go-winres@v0.3.3
+		if ($LASTEXITCODE -ne 0) { throw 'Windows resource tool setup failed' }
+	} finally { $env:GOBIN = $vyraOldGOBIN }
+	$vyraResourceTool = Join-Path $vyraTools 'go-winres.exe'
+	& $vyraResourceTool make --arch amd64 --file-version "$vyraVersion.0" --product-version "$vyraVersion.0"
+	if ($LASTEXITCODE -ne 0) { throw 'Desktop icon and manifest generation failed' }
     if (-not $SkipTests) {
         & $GoExecutable test ./...
         if ($LASTEXITCODE -ne 0) { throw 'Desktop tests failed' }
@@ -38,6 +49,14 @@ try {
     Compress-Archive -Path (Join-Path $vyraStage '*') -DestinationPath (Join-Path $vyraRoot 'installer\payload.zip') -Force
     Push-Location (Join-Path $vyraRoot 'installer')
     try {
+		& $vyraResourceTool make --arch amd64 --file-version "$vyraVersion.0" --product-version "$vyraVersion.0"
+		if ($LASTEXITCODE -ne 0) { throw 'Setup icon and manifest generation failed' }
+		if (-not $SkipTests) {
+			& $GoExecutable test ./...
+			if ($LASTEXITCODE -ne 0) { throw 'Setup tests failed' }
+			& $GoExecutable vet ./...
+			if ($LASTEXITCODE -ne 0) { throw 'Setup validation failed' }
+		}
         & $GoExecutable build -trimpath -ldflags "-H=windowsgui -s -w -X main.version=$vyraVersion" -o (Join-Path $vyraOutput 'VYRA-Setup.exe') .
         if ($LASTEXITCODE -ne 0) { throw 'Windows setup build failed' }
     } finally { Pop-Location }
@@ -48,7 +67,7 @@ try {
         version = $vyraVersion
         url = "https://vyra-five-lac.vercel.app/downloads/$vyraVersion/VYRA-Setup.exe"
         sha256 = $vyraChecksum
-        notes = 'Live voice captions, streaming AI, project context, scheduled AI tasks, word-highlighted Clips captions and reliable installer updates.'
+        notes = 'Branded Windows setup with progress, silent install helpers, VYRA app and shortcut icons, and refreshed OpenAI connection status.'
     }
     $vyraJSON = $vyraManifest | ConvertTo-Json
     [IO.File]::WriteAllText((Join-Path $vyraOutput 'latest.json'), $vyraJSON, [Text.UTF8Encoding]::new($false))

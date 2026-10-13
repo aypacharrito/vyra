@@ -57,3 +57,12 @@ func TestPayloadExtractsWithinSelectedFolder(t *testing.T) {
 		}
 	}
 }
+
+func TestInstallHelpersNeverCreateConsoleWindows(t *testing.T) {
+	for _, name := range []string{"powershell.exe", "reg.exe", "VYRA.exe"} {
+		cmd := hiddenCommand(name, "example")
+		if cmd.SysProcAttr == nil || !cmd.SysProcAttr.HideWindow || cmd.SysProcAttr.CreationFlags&0x08000000 == 0 {
+			t.Fatalf("%s can show a console window", name)
+		}
+	}
+}
