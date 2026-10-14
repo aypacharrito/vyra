@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -21,7 +22,7 @@ import (
 //go:embed web/*
 var content embed.FS
 
-var version = "1.2.1"
+var version = "1.3.0"
 
 type app struct {
 	mu        sync.RWMutex
@@ -129,10 +130,25 @@ func (a *app) routes() http.Handler {
 		client := http.Client{Timeout: 1200 * time.Millisecond}
 		resp, err := client.Get("http://127.0.0.1:8765/api/status")
 		running := err == nil && resp.StatusCode == 200
+		connected := []string{}
 		if resp != nil {
+			if running {
+				var status struct {
+					Platforms map[string]struct {
+						Connected bool `json:"connected"`
+					} `json:"platforms"`
+				}
+				if json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&status) == nil {
+					for _, platform := range []string{"youtube", "instagram", "facebook", "tiktok"} {
+						if status.Platforms[platform].Connected {
+							connected = append(connected, platform)
+						}
+					}
+				}
+			}
 			resp.Body.Close()
 		}
-		writeJSON(w, 200, map[string]any{"running": running, "installed": workerAvailable()})
+		writeJSON(w, 200, map[string]any{"running": running, "installed": workerAvailable(), "connected": connected})
 	})
 	mux.HandleFunc("POST /api/quit", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, map[string]bool{"ok": true})
@@ -249,7 +265,7 @@ func (a *app) launchClips(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	args := []string{"-m", "uvicorn", "server:app", "--host", "127.0.0.1", "--port", "8765"}
+	args := []string{"-m", "uvicorn", "server:app", "--host", "127.0.0.1", "--port", "8765", "--no-access-log"}
 	if strings.EqualFold(filepath.Base(exe), "py.exe") {
 		args = append([]string{"-3"}, args...)
 	}

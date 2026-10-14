@@ -30,6 +30,16 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Desktop tests failed' }
         node --check web/app.js
         if ($LASTEXITCODE -ne 0) { throw 'Interface validation failed' }
+        node --check clips-worker/static/connections.js
+        if ($LASTEXITCODE -ne 0) { throw 'Connection wizard validation failed' }
+        $vyraClipsUI = Get-Content -LiteralPath (Join-Path $vyraRoot 'clips-worker\static\index.html') -Raw
+        $vyraClipsScript = [regex]::Match($vyraClipsUI, '<script>([\s\S]*?)</script>').Groups[1].Value
+        $vyraClipsCheck = Join-Path $vyraRoot '.build\clips-ui-check.js'
+        [IO.File]::WriteAllText($vyraClipsCheck, $vyraClipsScript, [Text.UTF8Encoding]::new($false))
+        node --check $vyraClipsCheck
+        if ($LASTEXITCODE -ne 0) { throw 'Clips interface validation failed' }
+        node --test tests/oauth-relay.test.mjs
+        if ($LASTEXITCODE -ne 0) { throw 'OAuth callback validation failed' }
     }
     $env:GOOS = 'windows'
     $env:GOARCH = 'amd64'
@@ -67,7 +77,7 @@ try {
         version = $vyraVersion
         url = "https://vyra-five-lac.vercel.app/downloads/$vyraVersion/VYRA-Setup.exe"
         sha256 = $vyraChecksum
-        notes = 'Branded Windows setup with progress, silent install helpers, VYRA app and shortcut icons, and refreshed OpenAI connection status.'
+        notes = 'Refined VYRA logo, guided social account setup, Facebook Page Reels, Google PKCE sign-in, and Windows-protected connection credentials.'
     }
     $vyraJSON = $vyraManifest | ConvertTo-Json
     [IO.File]::WriteAllText((Join-Path $vyraOutput 'latest.json'), $vyraJSON, [Text.UTF8Encoding]::new($false))

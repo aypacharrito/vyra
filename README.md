@@ -1,4 +1,4 @@
-# VYRA 1.2 — Open Beta
+# VYRA 1.3 — Open Beta
 
 VYRA is a Windows AI workspace with a Steam-inspired library, streaming OpenAI conversations, visible voice captions, project context, repeatable AI tasks and a local Clips Studio.
 
@@ -35,7 +35,9 @@ Tasks produce text and code. They do not execute generated code, browse websites
 
 Use **Set up Clips Worker** to open the included setup window. Install Python 3.11+ and FFmpeg/FFprobe once. Python dependencies go into a private `.venv` in the worker folder. Then use **Launch Clips Studio**.
 
-Clips transcribes spoken audio, selects candidate moments and renders vertical videos locally with word-highlighted captions. Timing comes from the actual transcript timestamps. YouTube, Instagram and TikTok integrations require your own authorized accounts, developer credentials and applicable platform approvals. Instagram requires staging storage. TikTok retains fresh confirmation at posting time.
+Clips transcribes spoken audio, selects candidate moments and renders vertical videos locally with word-highlighted captions. Timing comes from the actual transcript timestamps. YouTube, Instagram, Facebook and TikTok integrations require your own authorized accounts, developer credentials and applicable platform approvals. Instagram requires staging storage. TikTok retains fresh confirmation at posting time.
+
+Use **Connected accounts → Set up connection** to privately import your Google Desktop OAuth JSON or save Meta app details. Connect through each platform’s sign-in screen. Facebook requires explicit Page selection. See [social setup](docs/SOCIAL_CONNECTIONS.md).
 
 Publishing claims are atomic and duplicate active posts are rejected. If a process closes during submission, the record needs review; check the destination before retrying. Scheduled posts require the worker to stay running. Account publishing has not been live-tested without the user's credentials.
 

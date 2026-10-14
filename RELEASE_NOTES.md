@@ -1,4 +1,14 @@
-# VYRA 1.2.1 Open Beta
+# VYRA 1.3 Open Beta
+
+- The same VYRA hexagon/V symbol, refined with metallic highlights and subtle depth across desktop, setup, website and Clips Studio.
+- Guided connection setup inside Clips Studio. Import a Google Desktop OAuth client JSON file or privately save Meta app details; no manual `.env` editing is required for these connections.
+- Facebook Page sign-in, explicit Page selection and Facebook Reels publishing with the official local-upload flow. Uploads require reviewing and confirming the selected destination.
+- Google sign-in uses PKCE and verifies the selected YouTube channel. Account tokens and app credentials use a Windows-account-protected encryption key.
+- HTTPS callback relays for Instagram and Facebook, one-use OAuth state checks, hidden credential fields, safe callback errors and disabled worker access logs.
+
+Social connections still require the user's developer app, granted permissions and any platform approval. Instagram publishing also needs temporary media hosting configured separately. No account is reported as connected until authorization completes; Facebook also requires selecting a Page. No social posts are made during setup.
+
+Includes the VYRA 1.2.1 setup improvements:
 
 - A native, branded Windows setup window with installation progress, accessible buttons, retry after failure and automatic reopening after an update.
 - Silent PowerShell and registry helpers during installation and removal, so setup no longer flashes command windows.

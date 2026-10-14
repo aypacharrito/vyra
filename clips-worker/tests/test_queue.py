@@ -98,6 +98,31 @@ def test_local_write_requires_session_and_origin(worker):
     }).status_code == 409
 
 
+def test_connection_wizard_saves_privately_and_requires_local_session(worker):
+    client=TestClient(worker.app,base_url='http://127.0.0.1:8765')
+    body={'credential_json':json.dumps({'installed':{'client_id':'123-test.apps.googleusercontent.com','client_secret':'private-local-secret'}})}
+    assert client.put('/api/connections/youtube',json=body).status_code == 403
+    saved=client.put('/api/connections/youtube',json=body,headers={'x-vyra-csrf':worker.APP_TOKEN})
+    assert saved.status_code == 200
+    assert saved.json()['configured']
+    assert 'private-local-secret' not in saved.text
+    assert 'private-local-secret' not in client.get('/api/status').text
+    started=client.post('/api/oauth/youtube/start',json={},headers={'x-vyra-csrf':worker.APP_TOKEN})
+    assert started.status_code == 200 and 'code_challenge=' in started.json()['url']
+    assert 'private-local-secret' not in started.text
+    oversized=client.put('/api/connections/youtube',content='a'*32769,headers={'x-vyra-csrf':worker.APP_TOKEN})
+    assert oversized.status_code == 413
+
+
+def test_callback_errors_never_reflect_credential_urls(worker,monkeypatch):
+    def fail(*args): raise RuntimeError('https://provider.example?client_secret=private-secret')
+    monkeypatch.setattr(worker.CONNECT,'finish',fail)
+    client=TestClient(worker.app,base_url='http://127.0.0.1:8765',follow_redirects=False)
+    response=client.get('/api/oauth/facebook/callback?state=test&code=test')
+    assert response.status_code == 302
+    assert 'private-secret' not in response.headers['location']
+
+
 def test_cancelled_post_cannot_start(worker, monkeypatch):
     seed(worker, 'cancelled')
     monkeypatch.setattr(worker, 'handle_post', lambda row: pytest.fail('Cancelled post sent'))

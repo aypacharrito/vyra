@@ -17,7 +17,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from clip_engine import process_video
-from social import Connectors, Vault, instagram_post, tiktok_post, youtube_upload
+from social import Connectors, Vault, VALID_PLATFORMS, facebook_post, instagram_post, tiktok_post, youtube_upload
 
 BASE = Path(__file__).resolve().parent
 load_dotenv(BASE / '.env')
@@ -113,6 +113,8 @@ def handle_post(row):
         return youtube_upload(CONNECT,video,row['title'],row['caption'],row['visibility'])
     if row['platform']=='instagram':
         return instagram_post(CONNECT,video,row['caption'])
+    if row['platform']=='facebook':
+        return facebook_post(CONNECT,video,row['title'],row['caption'])
     if row['platform']=='tiktok':
         return tiktok_post(CONNECT,video,row['title']+' '+row['caption'],row['visibility'])
     raise ValueError('Unknown destination')
@@ -179,9 +181,16 @@ def homepage():
     return source.replace('__VYRA_CSRF_VALUE__',APP_TOKEN)
 
 
+@app.get('/assets/{name}')
+def asset(name:str):
+    allowed={'connections.js':'text/javascript', 'icon.svg':'image/svg+xml', 'favicon.ico':'image/x-icon'}
+    if name not in allowed: raise HTTPException(404, 'Asset not found')
+    return FileResponse(BASE/'static'/name, media_type=allowed[name])
+
+
 @app.get('/api/status')
 def status():
-    return {'version':'0.2.0','ready':bool(os.getenv('OPENAI_API_KEY')),
+    return {'version':'0.3.0','ready':bool(os.getenv('OPENAI_API_KEY')),
             'platforms':CONNECT.info(), 'render_engine':'FFmpeg required','post_safety':'consent per destination'}
 
 
@@ -261,26 +270,62 @@ def download(job_id:str,filename:str):
                         content_disposition_type='inline')
 
 
-@app.get('/api/oauth/{provider}/start')
+@app.post('/api/oauth/{provider}/start')
 def login(provider:str):
-    if provider not in ('youtube','instagram','tiktok'):
+    if provider not in VALID_PLATFORMS:
         raise HTTPException(404,'Unknown platform')
     try:
-        return RedirectResponse(CONNECT.start(provider),status_code=302)
+        return {'url': CONNECT.start(provider)}
     except ValueError as exc:
-        return RedirectResponse('/?error='+quote(str(exc)),status_code=302)
+        raise HTTPException(400, str(exc))
+
+
+@app.get('/api/connections/{provider}')
+def connection_setup(provider:str):
+    if provider not in VALID_PLATFORMS:
+        raise HTTPException(404, 'Unknown platform')
+    return CONNECT.settings.info(provider)
+
+
+@app.put('/api/connections/{provider}')
+async def save_connection_setup(provider:str, req:Request):
+    if provider not in VALID_PLATFORMS:
+        raise HTTPException(404, 'Unknown platform')
+    raw = bytearray()
+    async for chunk in req.stream():
+        raw.extend(chunk)
+        if len(raw) > 32768: raise HTTPException(413, 'Connection settings are too large.')
+    try:
+        body=json.loads(raw)
+        if not isinstance(body, dict): raise ValueError('Invalid connection settings.')
+        return CONNECT.settings.save(provider, body)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)[:240]) from None
+    except TypeError:
+        raise HTTPException(400, 'Check the required connection fields.') from None
+
+
+@app.post('/api/accounts/facebook/page')
+async def choose_facebook_page(req:Request):
+    try:
+        body=await req.json()
+        return CONNECT.select_page(str(body.get('page_id', '')))
+    except (ValueError, TypeError, AttributeError) as exc:
+        raise HTTPException(400, 'Choose a Page returned by your Facebook sign-in.') from None
 
 
 @app.get('/api/oauth/{provider}/callback')
 def callback(provider:str,state:str='',code:str='',error:str=''):
-    if provider not in ('youtube','instagram','tiktok'):
+    if provider not in VALID_PLATFORMS:
         raise HTTPException(404,'Unsupported provider')
     if error:
         return RedirectResponse('/?error='+quote(error),status_code=302)
     try:
         data=CONNECT.finish(provider,state,code)
-    except Exception as exc:
+    except ValueError as exc:
         return RedirectResponse('/?error='+quote(str(exc)[:200]),status_code=302)
+    except Exception:
+        return RedirectResponse('/?error='+quote('Connection was not completed. Check your app settings and granted permissions, then try again.'),status_code=302)
     return RedirectResponse('/?connected='+quote(data['provider']),status_code=302)
 
 
@@ -297,7 +342,7 @@ def creator_options():
 
 @app.delete('/api/accounts/{provider}')
 def disconnect(provider:str):
-    if provider not in ('youtube','instagram','tiktok'):
+    if provider not in VALID_PLATFORMS:
         raise HTTPException(404,'Unsupported provider')
     VAULT.delete(provider)
     return {'disconnected':provider}
@@ -307,8 +352,8 @@ def make_post(body,scheduled):
     provider=str(body.get('platform',''))
     job_id=str(body.get('job_id',''))
     filename=str(body.get('filename',''))
-    if provider not in ('youtube','instagram','tiktok'):
-        raise HTTPException(400,'Choose YouTube, Instagram, or TikTok.')
+    if provider not in VALID_PLATFORMS:
+        raise HTTPException(400,'Choose YouTube, Instagram, Facebook, or TikTok.')
     video=clip_path(job_id,filename)
     title=str(body.get('title','')).strip()[:100]
     caption=str(body.get('caption','')).strip()[:2200]
@@ -323,6 +368,8 @@ def make_post(body,scheduled):
         raise HTTPException(400,'TikTok requires a fresh, explicit posting confirmation and available privacy choices; use Publish now.')
     if provider=='youtube' and visibility not in ('private','unlisted','public'):
         raise HTTPException(400,'YouTube visibility must be private, unlisted, or public.')
+    if provider in ('instagram','facebook') and visibility != 'reels':
+        raise HTTPException(400, 'Choose Reels publishing for this destination.')
     if provider=='tiktok' and visibility not in ('PUBLIC_TO_EVERYONE','MUTUAL_FOLLOW_FRIENDS','FOLLOWER_OF_CREATOR','SELF_ONLY'):
         raise HTTPException(400,'Select a privacy option shown by TikTok.')
     if scheduled:
