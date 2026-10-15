@@ -1,6 +1,6 @@
 {
-  "version": "1.3.0",
-  "url": "https://vyra-five-lac.vercel.app/downloads/1.3.0/VYRA-Setup.exe",
-  "sha256": "a25196fdc9a35d3e88a594461d87c53cdf02ecdca813d1e8cfe78ee24444bfa8",
-  "notes": "Refined VYRA logo, guided social account setup, Facebook Page Reels, Google PKCE sign-in, and Windows-protected connection credentials."
+  "version": "1.4.0",
+  "url": "https://vyra-five-lac.vercel.app/downloads/1.4.0/VYRA-Setup.exe",
+  "sha256": "20979d093fd43bc5521ec0e28319747fd54ff7ecb8581e741f56550f948f4111",
+  "notes": "Native Windows desktop window, integrated Clips Studio, live AI web search with clickable sources, longer conversations and quiet video tool setup."
 }
