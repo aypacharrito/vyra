@@ -17,6 +17,7 @@ type preferences struct {
 	SpeakReplies bool   `json:"speakReplies"`
 	Language     string `json:"language"`
 	Voice        string `json:"voice"`
+	WebSearch    *bool  `json:"webSearch,omitempty"`
 }
 
 func userDataDir() string {

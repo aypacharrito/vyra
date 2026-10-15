@@ -1,3 +1,14 @@
+# VYRA 1.4 Open Beta
+
+- A native Windows window with the VYRA icon, powered by the embedded WebView2 Runtime. Opening VYRA no longer launches Microsoft Edge in app mode.
+- Clips Studio inside the desktop app: creation, captions, connected accounts, exports and publishing. Switching workspace sections preserves the open studio and selected inputs. Platform sign-in opens in the default browser and returns to the existing local connection flow.
+- Live OpenAI web search in conversations and AI tasks, with clickable citations and source titles. Research requests return findings and links. Search can be disabled in Settings.
+- Complete conversation history is sent within the provider context window, with longer messages, reference material and answer output. Interrupted answers remain visible.
+- Quiet video dependency setup with progress inside VYRA, plus hidden FFmpeg windows. A desktop-owned worker picks up a newly saved OpenAI key for subsequent work.
+- Existing encrypted keys, social connections, conversations, projects and tasks survive the update.
+
+OpenAI model capabilities, access, context limits, service rules and API billing still apply. VYRA does not automatically inherit every ChatGPT or Codex tool. Instagram publishing still requires private temporary media hosting. Facebook remains optional.
+
 # VYRA 1.3 Open Beta
 
 - The same VYRA hexagon/V symbol, refined with metallic highlights and subtle depth across desktop, setup, website and Clips Studio.

@@ -1,6 +1,6 @@
-# VYRA 1.3 — Open Beta
+# VYRA 1.4 — Open Beta
 
-VYRA is a Windows AI workspace with a Steam-inspired library, streaming OpenAI conversations, visible voice captions, project context, repeatable AI tasks and a local Clips Studio.
+VYRA is a Windows AI workspace with a Steam-inspired library, streaming OpenAI conversations, visible voice captions, project context, repeatable AI tasks and an integrated Clips Studio. VYRA owns its Windows window and embeds Microsoft WebView2 Runtime; it does not launch Edge in app mode. The runtime is included on current Windows versions and can also be installed from Microsoft.
 
 ## Install and connect
 
@@ -10,6 +10,10 @@ VYRA is a Windows AI workspace with a Steam-inspired library, streaming OpenAI c
 4. Open **Intelligence**, type or dictate a message, and watch the reply stream. Use Stop, Copy, Read aloud or Export as needed.
 
 The beta is free to install; OpenAI usage is billed separately to each user's API project. The public website is a landing page and interactive preview. AI requests run through the installed app. The setup executable is unsigned.
+
+## Web research and models
+
+Live web search is enabled by default. The selected OpenAI model can look up current information and returns clickable source citations. Disable it in Settings for conversations using only model knowledge and supplied material. Search has OpenAI API charges. The app no longer drops conversation history after 40 messages, and it supports longer replies. Provider context, output, access and safety rules still apply. VYRA has the knowledge and tools of its selected API model; connecting a key does not automatically add every ChatGPT or Codex tool.
 
 ## Voice and captions
 
@@ -29,11 +33,11 @@ Create manual, one-time or recurring tasks from **AI Tasks**. Templates include 
 
 Tasks run while VYRA is open. One task runs at a time. A missed recurring schedule runs once on reopen, then advances from that time. Results appear in activity and can continue as a conversation. Errors and cancellations pause the schedule. Interrupted calls are recorded for review rather than silently retried. Each task can run at most 100 times; recurring intervals are at least one hour. Review tasks before enabling paid API calls.
 
-Tasks produce text and code. They do not execute generated code, browse websites or control the computer. Social publishing is handled separately by Clips Studio with destination consent.
+Tasks produce text and code and can research current information using OpenAI web search. They do not execute generated code or control the computer. Social publishing is handled separately by Clips Studio with destination consent.
 
 ## Clips Studio
 
-Use **Set up Clips Worker** to open the included setup window. Install Python 3.11+ and FFmpeg/FFprobe once. Python dependencies go into a private `.venv` in the worker folder. Then use **Launch Clips Studio**.
+Open **VYRA Clips** in the sidebar: upload, captions, exports, accounts and publishing stay inside the desktop window. Account authorization opens the platform’s official sign-in in your default browser; return to VYRA afterward. If needed, **Set up video tools** installs Python dependencies quietly with progress inside VYRA. Python 3.11+ and FFmpeg/FFprobe must be installed. Dependencies go into a private `.venv` in the worker folder.
 
 Clips transcribes spoken audio, selects candidate moments and renders vertical videos locally with word-highlighted captions. Timing comes from the actual transcript timestamps. YouTube, Instagram, Facebook and TikTok integrations require your own authorized accounts, developer credentials and applicable platform approvals. Instagram requires staging storage. TikTok retains fresh confirmation at posting time.
 

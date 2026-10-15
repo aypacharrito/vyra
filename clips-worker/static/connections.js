@@ -8,6 +8,10 @@
   const response=await fetch(path,{method,headers:{'Content-Type':'application/json','x-vyra-csrf':csrf},body:body===undefined?undefined:JSON.stringify(body)});
   const data=await response.json();if(!response.ok)throw Error(data.detail||'Connection setup could not finish.');return data;
  };
+ const embedded=window.parent!==window&&new URLSearchParams(location.search).get('embedded')==='1';
+ function openAccountLink(url){if(embedded)window.parent.postMessage({type:'vyra.openExternal',url},'http://127.0.0.1:48791');else location.assign(url)}
+ if(embedded){document.documentElement.classList.add('embedded');document.addEventListener('click',event=>{const link=event.target.closest('a[target="_blank"]');if(link){event.preventDefault();openAccountLink(link.href)}},true)}
+ window.addEventListener('focus',()=>window.loadStatus?.());document.addEventListener('visibilitychange',()=>{if(!document.hidden)window.loadStatus?.()});
  let provider='', busy=false;
  const dialog=el('connectionDialog');
  async function setup(name){
@@ -30,7 +34,7 @@
  }
  async function connect(name){
   if(busy)return;busy=true;
-  try{const data=await api('/api/oauth/'+name+'/start','POST',{});location.assign(data.url)}
+  try{const data=await api('/api/oauth/'+name+'/start','POST',{});openAccountLink(data.url)}
   catch(error){window.toast(error.message);await setup(name)}finally{busy=false}
  }
  el('connectionClose').onclick=()=>dialog.close();

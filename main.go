@@ -22,7 +22,7 @@ import (
 //go:embed web/*
 var content embed.FS
 
-var version = "1.3.0"
+var version = "1.4.0"
 
 type app struct {
 	mu        sync.RWMutex
@@ -92,7 +92,7 @@ func (a *app) routes() http.Handler {
 		verified := a.verified
 		model := a.model
 		a.mu.RUnlock()
-		writeJSON(w, 200, map[string]any{"version": version, "local": true, "openai": configured, "verified": verified, "model": model, "worker": workerAvailable()})
+		writeJSON(w, 200, map[string]any{"version": version, "local": true, "openai": configured, "verified": verified, "model": model, "worker": workerAvailable(), "desktop": desktopStatus()})
 	})
 	mux.HandleFunc("POST /api/settings", a.setConnection)
 	mux.HandleFunc("DELETE /api/settings/key", func(w http.ResponseWriter, r *http.Request) {
@@ -126,6 +126,7 @@ func (a *app) routes() http.Handler {
 	mux.HandleFunc("POST /api/updates/install", a.installUpdate)
 	mux.HandleFunc("POST /api/clips/launch", a.launchClips)
 	mux.HandleFunc("POST /api/clips/setup", a.setupClips)
+	mux.HandleFunc("POST /api/open-external", a.openLink)
 	mux.HandleFunc("GET /api/clips/status", func(w http.ResponseWriter, r *http.Request) {
 		client := http.Client{Timeout: 1200 * time.Millisecond}
 		resp, err := client.Get("http://127.0.0.1:8765/api/status")
@@ -148,7 +149,7 @@ func (a *app) routes() http.Handler {
 			}
 			resp.Body.Close()
 		}
-		writeJSON(w, 200, map[string]any{"running": running, "installed": workerAvailable(), "connected": connected})
+		writeJSON(w, 200, map[string]any{"running": running, "installed": workerAvailable(), "connected": connected, "setup": setupSnapshot()})
 	})
 	mux.HandleFunc("POST /api/quit", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, map[string]bool{"ok": true})
@@ -166,7 +167,7 @@ func (a *app) routes() http.Handler {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		w.Header().Set("Cache-Control", "no-store")
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'; frame-src http://127.0.0.1:8765; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
 		w.Header().Set("Permissions-Policy", "microphone=(self), camera=(), geolocation=()")
 		if origin := r.Header.Get("Origin"); origin != "" && origin != "http://"+r.Host {
 			http.Error(w, "Origin rejected", 403)
@@ -182,7 +183,7 @@ func (a *app) routes() http.Handler {
 				http.Error(w, "Session rejected", 403)
 				return
 			}
-			limit := int64(2 * 1024 * 1024)
+			limit := int64(8 * 1024 * 1024)
 			if r.URL.Path == "/api/voice/transcribe" {
 				limit = 12 * 1024 * 1024
 			}
@@ -271,7 +272,7 @@ func (a *app) launchClips(w http.ResponseWriter, r *http.Request) {
 	}
 	cmd := exec.Command(exe, args...)
 	cmd.Dir = workerDirectory()
-	cmd.Env = append(os.Environ(), "OPENAI_API_KEY="+key)
+	cmd.Env = append(os.Environ(), "OPENAI_API_KEY="+key, "VYRA_DESKTOP_PROFILE="+a.dataDir)
 	hideWorker(cmd)
 	if err := cmd.Start(); err != nil {
 		writeJSON(w, 502, map[string]string{"error": "Could not start Clips worker: " + err.Error()})
@@ -316,13 +317,28 @@ func main() {
 	}
 	defer l.Close()
 	a.server = &http.Server{Handler: a.routes(), ReadHeaderTimeout: 5 * time.Second}
-	if os.Getenv("VYRA_HEADLESS") != "1" {
-		go openDesktop("http://" + l.Addr().String() + "/")
-	}
 	a.startUpdateChecks()
 	a.startTasks()
 	defer a.stopTasks()
-	if err := a.server.Serve(l); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	if os.Getenv("VYRA_HEADLESS") == "1" {
+		if err := a.server.Serve(l); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Println(err)
+		}
+		return
+	}
+	stopped := make(chan struct{})
+	go func() {
+		defer close(stopped)
+		if err := a.server.Serve(l); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Println(err)
+		}
+		closeDesktop()
+	}()
+	if err := openDesktop("http://" + l.Addr().String() + "/"); err != nil {
 		log.Println(err)
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_ = a.server.Shutdown(ctx)
+	<-stopped
 }

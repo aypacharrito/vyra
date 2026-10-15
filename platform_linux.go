@@ -14,12 +14,16 @@ func saveKey(key string) error {
 func loadKey() (string, error) { return "", fmt.Errorf("not saved") }
 func deleteKey() error         { return nil }
 func hideWorker(cmd *exec.Cmd) {}
-func openDesktop(url string) {
+func openDesktop(url string) error {
 	fmt.Println("VYRA running at", url)
 	if os.Getenv("VYRA_BROWSER") != "" {
 		exec.Command("xdg-open", url).Start()
 	}
+	return nil
 }
-func showExisting() { openDesktop("http://127.0.0.1:48791/") }
-
-func openClipsSetup() error { return fmt.Errorf("Clips setup is available in the Windows build") }
+func showExisting() { _ = openDesktop("http://127.0.0.1:48791/") }
+func closeDesktop() {}
+func desktopStatus() map[string]any {
+	return map[string]any{"engine": "headless", "nativeWindow": false, "visible": false}
+}
+func openExternal(url string) error { return exec.Command("xdg-open", url).Start() }

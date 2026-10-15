@@ -128,3 +128,13 @@ def test_cancelled_post_cannot_start(worker, monkeypatch):
     monkeypatch.setattr(worker, 'handle_post', lambda row: pytest.fail('Cancelled post sent'))
     worker.deliver('post-one')
     assert worker.read_posts()[0]['status'] == 'cancelled'
+
+
+def test_studio_can_only_be_framed_by_local_vyra(worker):
+    client = TestClient(worker.app, base_url='http://127.0.0.1:8765')
+    response = client.get('/')
+    assert response.status_code == 200
+    assert response.headers['content-security-policy'] == "frame-ancestors 'self' http://127.0.0.1:48791 http://localhost:48791"
+    assert '__VYRA_CSRF_VALUE__' not in response.text
+    assert client.post('/api/oauth/youtube/start', json={}, headers={
+        'Origin': 'http://evil.example', 'x-vyra-csrf': worker.APP_TOKEN}).status_code == 403

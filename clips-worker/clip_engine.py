@@ -20,7 +20,8 @@ Progress = Callable[[str, int], None]
 
 
 def command(args: list[str]):
-    result = subprocess.run(args, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=3600)
+    result = subprocess.run(args, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=3600,
+                            creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
     if result.returncode != 0:
         raise RuntimeError(f"Command failed: {args[0]}: {result.stderr[-1400:]}")
     return result.stdout
@@ -206,7 +207,8 @@ def render(source: Path, output: Path, selected: list[dict], words: list[dict], 
         vf = "scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,setsar=1,subtitles='" + captions.name + "'"
         args = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-ss", f'{clip["start"]:.3f}', "-i", str(source),
                 "-t", f'{clip["end"]-clip["start"]:.3f}', "-vf", vf, "-c:v", encoder, "-preset", "fast" if encoder == "libx264" else "p4", "-pix_fmt", "yuv420p", "-r", "30", "-c:a", "aac", "-ar", "48000", "-b:a", "128k", "-movflags", "+faststart", str(target)]
-        result = subprocess.run(args, cwd=output, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=3600)
+        result = subprocess.run(args, cwd=output, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=3600,
+                                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
         if result.returncode != 0:
             raise RuntimeError(f"Rendering clip {i} failed. Ensure FFmpeg has libass subtitle support: {result.stderr[-1100:]}")
         done.append({**clip, "file": target.name, "subtitles": captions.name})

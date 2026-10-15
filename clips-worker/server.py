@@ -17,6 +17,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from clip_engine import process_video
+from desktop_connection import refresh_desktop_connection
 from social import Connectors, Vault, VALID_PLATFORMS, facebook_post, instagram_post, tiktok_post, youtube_upload
 
 BASE = Path(__file__).resolve().parent
@@ -172,6 +173,7 @@ async def local_only_security(req: Request, next_call):
     result.headers['X-Content-Type-Options']='nosniff'
     result.headers['Referrer-Policy']='no-referrer'
     result.headers['Cache-Control']='no-store'
+    result.headers['Content-Security-Policy']="frame-ancestors 'self' http://127.0.0.1:48791 http://localhost:48791"
     return result
 
 
@@ -190,15 +192,17 @@ def asset(name:str):
 
 @app.get('/api/status')
 def status():
-    return {'version':'0.3.0','ready':bool(os.getenv('OPENAI_API_KEY')),
+    refresh_desktop_connection()
+    return {'version':'0.4.0','ready':bool(os.getenv('OPENAI_API_KEY')),
             'platforms':CONNECT.info(), 'render_engine':'FFmpeg required','post_safety':'consent per destination'}
 
 
 @app.post('/api/jobs')
 async def start_job(file: UploadFile=File(...),count:int=Form(5),
                     min_seconds:int=Form(20),max_seconds:int=Form(60)):
+    refresh_desktop_connection()
     if not os.getenv('OPENAI_API_KEY'):
-        raise HTTPException(503,'Put OPENAI_API_KEY in your local .env, then restart.')
+        raise HTTPException(503,'Connect OpenAI in VYRA’s Settings & connections first.')
     count=max(1,min(count,12))
     minimum=max(12,min(min_seconds,120))
     maximum=max(minimum,min(max_seconds,180))

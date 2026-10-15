@@ -45,7 +45,7 @@ try {
     $env:GOARCH = 'amd64'
     & $GoExecutable build -trimpath -ldflags "-H=windowsgui -s -w -X main.version=$vyraVersion" -o (Join-Path $vyraStage 'VYRA.exe') .
     if ($LASTEXITCODE -ne 0) { throw 'Desktop build failed' }
-    Copy-Item -LiteralPath (Join-Path $vyraRoot 'README.md'),(Join-Path $vyraRoot 'SETUP_CLIPS.bat') -Destination $vyraStage
+    Copy-Item -LiteralPath (Join-Path $vyraRoot 'README.md'),(Join-Path $vyraRoot 'THIRD_PARTY_NOTICES.txt'),(Join-Path $vyraRoot 'SETUP_CLIPS.bat') -Destination $vyraStage
     # Only tracked worker source is packaged. Credentials and generated data
     # never enter the installer, even if they exist in the developer's folder.
     $vyraFiles = & git ls-files clips-worker
@@ -77,7 +77,7 @@ try {
         version = $vyraVersion
         url = "https://vyra-five-lac.vercel.app/downloads/$vyraVersion/VYRA-Setup.exe"
         sha256 = $vyraChecksum
-        notes = 'Refined VYRA logo, guided social account setup, Facebook Page Reels, Google PKCE sign-in, and Windows-protected connection credentials.'
+        notes = 'Native Windows desktop window, integrated Clips Studio, live AI web search with clickable sources, longer conversations and quiet video tool setup.'
     }
     $vyraJSON = $vyraManifest | ConvertTo-Json
     [IO.File]::WriteAllText((Join-Path $vyraOutput 'latest.json'), $vyraJSON, [Text.UTF8Encoding]::new($false))

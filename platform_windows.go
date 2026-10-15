@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"syscall"
-	"time"
 	"unsafe"
 )
 
@@ -73,48 +72,17 @@ func deleteKey() error { return os.Remove(keyFile()) }
 func hideWorker(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x08000000}
 }
-func edgePath() string {
-	for _, root := range []string{os.Getenv("PROGRAMFILES(X86)"), os.Getenv("PROGRAMFILES"), os.Getenv("LOCALAPPDATA")} {
-		if root == "" {
-			continue
-		}
-		for _, p := range []string{"Microsoft\\Edge\\Application\\msedge.exe", "Microsoft\\Edge Beta\\Application\\msedge.exe"} {
-			f := filepath.Join(root, p)
-			if _, e := os.Stat(f); e == nil {
-				return f
-			}
-		}
-	}
-	return ""
-}
-func openDesktop(url string) {
-	time.Sleep(300 * time.Millisecond)
-	if edge := edgePath(); edge != "" {
-		c := exec.Command(edge, "--app="+url, "--window-size=1500,940", "--new-window")
-		hideWorker(c)
-		if c.Start() == nil {
-			return
-		}
-	}
-	c := exec.Command("rundll32.exe", "url.dll,FileProtocolHandler", url)
-	hideWorker(c)
-	_ = c.Start()
-}
-func showExisting() { openDesktop("http://127.0.0.1:48791/") }
-
-func openClipsSetup() error {
-	path, err := os.Executable()
+func openExternal(url string) error {
+	verb, _ := syscall.UTF16PtrFromString("open")
+	target, err := syscall.UTF16PtrFromString(url)
 	if err != nil {
 		return err
 	}
-	setup := filepath.Join(filepath.Dir(path), "SETUP_CLIPS.bat")
-	if _, err = os.Stat(setup); err != nil {
-		return err
+	result, _, _ := syscall.NewLazyDLL("shell32.dll").NewProc("ShellExecuteW").Call(0, uintptr(unsafe.Pointer(verb)), uintptr(unsafe.Pointer(target)), 0, 0, 1)
+	if result <= 32 {
+		return fmt.Errorf("Windows could not open the web link (%d)", result)
 	}
-	cmd := exec.Command("cmd.exe", "/c", setup)
-	cmd.Dir = filepath.Dir(path)
-	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: 0x00000010}
-	return cmd.Start()
+	return nil
 }
 
 var _ = errors.New
