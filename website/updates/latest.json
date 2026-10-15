@@ -1,6 +1,6 @@
 {
-  "version": "1.4.0",
-  "url": "https://vyra-five-lac.vercel.app/downloads/1.4.0/VYRA-Setup.exe",
-  "sha256": "20979d093fd43bc5521ec0e28319747fd54ff7ecb8581e741f56550f948f4111",
-  "notes": "Native Windows desktop window, integrated Clips Studio, live AI web search with clickable sources, longer conversations and quiet video tool setup."
+  "version": "1.4.1",
+  "url": "https://vyra-five-lac.vercel.app/downloads/1.4.1/VYRA-Setup.exe",
+  "sha256": "fb14cf2f15591316db46e400f86d9aff3b7711ed288eb962e8ca5a3a4bd9d4d6",
+  "notes": "Improved OpenAI key paste handling, support for longer secrets, clear connection feedback, and automatic connection testing after saving."
 }
