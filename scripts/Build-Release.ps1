@@ -77,7 +77,7 @@ try {
         version = $vyraVersion
         url = "https://vyra-five-lac.vercel.app/downloads/$vyraVersion/VYRA-Setup.exe"
         sha256 = $vyraChecksum
-        notes = 'Native Windows desktop window, integrated Clips Studio, live AI web search with clickable sources, longer conversations and quiet video tool setup.'
+        notes = 'Improved OpenAI key paste handling, support for longer secrets, clear connection feedback, and automatic connection testing after saving.'
     }
     $vyraJSON = $vyraManifest | ConvertTo-Json
     [IO.File]::WriteAllText((Join-Path $vyraOutput 'latest.json'), $vyraJSON, [Text.UTF8Encoding]::new($false))

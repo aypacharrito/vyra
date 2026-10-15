@@ -1,3 +1,9 @@
+# VYRA 1.4.1 Open Beta
+
+- Accept complete OpenAI secret keys pasted with quotes, a Bearer label, environment-variable wrappers or invisible formatting characters. Remove the obsolete 500-character key limit in both the app and its video worker.
+- Explain when a shortened key, key name or ID is pasted. Connection errors stay visible below the private key field and never include the secret.
+- Save & test checks the newly saved key automatically. The separate Test button saves a newly entered key first, rather than testing an older saved key.
+
 # VYRA 1.4 Open Beta
 
 - A native Windows window with the VYRA icon, powered by the embedded WebView2 Runtime. Opening VYRA no longer launches Microsoft Edge in app mode.

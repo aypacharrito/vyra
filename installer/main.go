@@ -22,7 +22,7 @@ import (
 //go:embed payload.zip
 var bundled embed.FS
 
-var version = "1.4.0"
+var version = "1.4.1"
 
 var msgbox = syscall.NewLazyDLL("user32.dll").NewProc("MessageBoxW")
 

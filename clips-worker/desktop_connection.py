@@ -29,7 +29,7 @@ def refresh_desktop_connection():
                 key = windows_key(_path.read_bytes(), False).decode('utf-8')
             except (OSError, RuntimeError, UnicodeError):
                 return
-            if not key.startswith('sk-') or not 20 <= len(key) <= 500:
+            if not key.startswith('sk-') or not 20 <= len(key) <= 8192:
                 return
             os.environ['OPENAI_API_KEY'] = key
         _stamp = stamp

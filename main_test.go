@@ -8,7 +8,7 @@ import (
 )
 
 func TestStatusAndLocalSecurity(t *testing.T) {
-	a := newApp()
+	a := testApp(t)
 	a.apiKey = ""
 	h := a.routes()
 	r := httptest.NewRequest("GET", "http://127.0.0.1:48791/api/status", nil)
@@ -38,7 +38,7 @@ func TestStatusAndLocalSecurity(t *testing.T) {
 	}
 }
 func TestKeyValidation(t *testing.T) {
-	a := newApp()
+	a := testApp(t)
 	a.apiKey = ""
 	h := a.routes()
 	r := httptest.NewRequest("POST", "http://127.0.0.1:48791/api/settings", strings.NewReader(`{"key":"invalid","persist":false}`))

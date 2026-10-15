@@ -35,7 +35,7 @@ func TestManifestSafety(t *testing.T) {
 }
 
 func TestOpenAITestRequiresSavedKey(t *testing.T) {
-	a := newApp()
+	a := testApp(t)
 	a.apiKey = ""
 	h := a.routes()
 	request := httptest.NewRequest("POST", "http://127.0.0.1:48791/api/openai/test", nil)

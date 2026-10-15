@@ -22,7 +22,7 @@ import (
 //go:embed web/*
 var content embed.FS
 
-var version = "1.4.0"
+var version = "1.4.1"
 
 type app struct {
 	mu        sync.RWMutex

@@ -337,9 +337,10 @@ func (a *app) setConnection(w http.ResponseWriter, r *http.Request) {
 	if !parseBody(w, r, &v) {
 		return
 	}
-	key, model := strings.TrimSpace(v.Key), strings.TrimSpace(v.Model)
-	if key != "" && (!strings.HasPrefix(key, "sk-") || len(key) < 20 || len(key) > 500) {
-		writeJSON(w, 400, map[string]string{"error": "Enter a valid OpenAI API key beginning with sk-."})
+	key, keyError := normalizeAPIKey(v.Key)
+	model := strings.TrimSpace(v.Model)
+	if keyError != nil {
+		writeJSON(w, 400, map[string]string{"error": keyError.Error(), "code": "key_format"})
 		return
 	}
 	if model != "" && !validTextModel(model) {
