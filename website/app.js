@@ -73,7 +73,7 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshSta
 setInterval(()=>{if(!document.hidden)refreshStatus(true)},15000);
 let clipsContainer=null,clipsLoading=false;
 function mountClips(){
- if(!clipsContainer){clipsContainer=document.createElement('section');clipsContainer.className='main-content clips-embedded';clipsContainer.innerHTML=`<div class="studio-toolbar"><div><strong>VYRA Clips</strong><span id="clips-state" role="status">Opening your studio…</span></div>${btn('Reload studio','launch-clips','ghost-btn')}</div><div id="studio-content" class="studio-content"><div class="studio-loading"><span class="msg-icon spin">✦</span><h2>Your creative workspace is opening.</h2><p>Clips, captions, exports and your connected accounts live right here.</p></div></div>`;root.after(clipsContainer)}
+ if(!clipsContainer){clipsContainer=document.createElement('section');clipsContainer.className='main-content clips-embedded';clipsContainer.innerHTML=`<div class="studio-toolbar"><div><strong>VYRA Clips</strong><span id="clips-state" role="status">Opening your studio…</span></div><div>${btn('Repair video tools','clips-setup','ghost-btn')}${btn('Reload studio','launch-clips','ghost-btn')}</div></div><div id="studio-content" class="studio-content"><div class="studio-loading"><span class="msg-icon spin">✦</span><h2>Your creative workspace is opening.</h2><p>Clips, captions, exports and your connected accounts live right here.</p></div></div>`;root.after(clipsContainer)}
  clipsContainer.hidden=state.view!=='clips';return clipsContainer;
 }
 async function checkClips(){mountClips();if(!clipsContainer.querySelector('iframe')&&!clipsLoading)await runClips()}
@@ -138,7 +138,7 @@ async function submitSettings(e){
 }
 async function runClips(){
  if(clipsLoading)return;mountClips();clipsLoading=true;const status=clipsContainer.querySelector('#clips-state');status.textContent='Starting your studio…';
- try{const data=await request('/api/clips/launch','POST',{});const url=new URL(data.url);if(url.origin!=='http://127.0.0.1:8765')throw Error('Unexpected studio address.');const content=clipsContainer.querySelector('#studio-content');let frame=content.querySelector('iframe');if(!frame){frame=document.createElement('iframe');frame.title='VYRA Clips Studio';frame.allow='clipboard-write';content.replaceChildren(frame)}frame.src=url.origin+'/?embedded=1';status.textContent='Your studio · saved accounts · local processing';}
+ try{const data=await request('/api/clips/launch','POST',{});if(data.preparing){watchVideoSetup();return}const url=new URL(data.url);if(url.origin!=='http://127.0.0.1:8765')throw Error('Unexpected studio address.');const content=clipsContainer.querySelector('#studio-content');let frame=content.querySelector('iframe');if(!frame){frame=document.createElement('iframe');frame.title='VYRA Clips Studio';frame.allow='clipboard-write';content.replaceChildren(frame)}frame.src=url.origin+'/?embedded=1';status.textContent='Your studio · saved accounts · local processing';}
  catch(e){status.textContent=e.message;if(!clipsContainer.querySelector('iframe'))clipsContainer.querySelector('#studio-content').innerHTML=`<div class="studio-loading"><h2>Let’s finish opening Clips.</h2><p>${html(e.message)}</p>${btn('Try again','launch-clips','primary-btn')}${btn('Set up video tools','clips-setup','secondary-btn')}</div>`}
  finally{clipsLoading=false}
 }

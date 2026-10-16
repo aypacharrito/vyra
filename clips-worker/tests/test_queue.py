@@ -138,3 +138,20 @@ def test_studio_can_only_be_framed_by_local_vyra(worker):
     assert '__VYRA_CSRF_VALUE__' not in response.text
     assert client.post('/api/oauth/youtube/start', json={}, headers={
         'Origin': 'http://evil.example', 'x-vyra-csrf': worker.APP_TOKEN}).status_code == 403
+
+
+def test_missing_engine_stops_before_accepting_source(worker,monkeypatch):
+    monkeypatch.setattr(worker,'media_status',lambda:{'ready':False,'message':'Repair video tools'})
+    client=TestClient(worker.app,base_url='http://127.0.0.1:8765')
+    result=client.post('/api/jobs',files={'file':('source.mp4',b'source','video/mp4')},headers={'x-vyra-csrf':worker.APP_TOKEN})
+    assert result.status_code==503
+    assert not worker.JOBS and not list(worker.WORK.iterdir())
+
+
+def test_processing_failure_keeps_uploaded_source(worker,monkeypatch):
+    source=worker.WORK/('a'*18+'.mp4');source.write_bytes(b'source')
+    worker.JOBS['a'*18]={'status':'processing'}
+    def fail(*args):raise RuntimeError('Try again')
+    monkeypatch.setattr(worker,'process_video',fail)
+    worker.do_job('a'*18,source,1,20,60)
+    assert source.exists() and worker.JOBS['a'*18]['status']=='error'

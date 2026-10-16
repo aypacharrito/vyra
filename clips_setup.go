@@ -54,6 +54,10 @@ func openClipsSetup() error {
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 		defer cancel()
+		if err = ensureMediaTools(ctx, func(detail string) { setupReport("running", detail) }); err != nil {
+			setupReport("failed", err.Error())
+			return
+		}
 		run := func(exe string, args ...string) error {
 			cmd := exec.CommandContext(ctx, exe, args...)
 			cmd.Dir = dir

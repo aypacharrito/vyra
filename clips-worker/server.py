@@ -14,9 +14,10 @@ from pathlib import Path
 from urllib.parse import quote
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Request
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, JSONResponse
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from clip_engine import process_video
+from media_tools import media_status
 from desktop_connection import refresh_desktop_connection
 from social import Connectors, Vault, VALID_PLATFORMS, facebook_post, instagram_post, tiktok_post, youtube_upload
 
@@ -92,7 +93,7 @@ def do_job(job_id, source, count, minimum, maximum):
     except Exception as exc:
         with LOCK:
             JOBS[job_id].update(status='error',message=str(exc)[:500],progress=0)
-    finally:
+    else:
         source.unlink(missing_ok=True)
 
 
@@ -169,6 +170,8 @@ async def local_only_security(req: Request, next_call):
             return HTMLResponse('Foreign origin blocked',status_code=403)
         if req.headers.get('x-vyra-csrf') != APP_TOKEN:
             return HTMLResponse('Missing local session authorization',status_code=403)
+    if req.method=='POST' and req.url.path=='/api/jobs' and not media_status()['ready']:
+        return JSONResponse({'detail':media_status()['message']},status_code=503)
     result=await next_call(req)
     result.headers['X-Content-Type-Options']='nosniff'
     result.headers['Referrer-Policy']='no-referrer'
@@ -193,14 +196,16 @@ def asset(name:str):
 @app.get('/api/status')
 def status():
     refresh_desktop_connection()
-    return {'version':'0.4.0','ready':bool(os.getenv('OPENAI_API_KEY')),
-            'platforms':CONNECT.info(), 'render_engine':'FFmpeg required','post_safety':'consent per destination'}
+    return {'version':'0.5.0','ready':bool(os.getenv('OPENAI_API_KEY')),
+            'platforms':CONNECT.info(), 'media':media_status(), 'render_engine':'FFmpeg','post_safety':'consent per destination'}
 
 
 @app.post('/api/jobs')
 async def start_job(file: UploadFile=File(...),count:int=Form(5),
                     min_seconds:int=Form(20),max_seconds:int=Form(60)):
     refresh_desktop_connection()
+    if not media_status()['ready']:
+        raise HTTPException(503,media_status()['message'])
     if not os.getenv('OPENAI_API_KEY'):
         raise HTTPException(503,'Connect OpenAI in VYRA’s Settings & connections first.')
     count=max(1,min(count,12))

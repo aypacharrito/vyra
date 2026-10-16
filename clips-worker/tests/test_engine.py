@@ -35,3 +35,17 @@ def test_spoken_word_highlight_follows_word_timestamps():
         assert '0:00:00.00,0:00:00.50' in events[0]
         assert r'{\c&H00D9F579&}Hello{\c&H00FFFFFF&} VYRA' in events[0]
         assert r'Hello {\c&H00D9F579&}VYRA{\c&H00FFFFFF&}' in events[1]
+
+
+def test_unusable_ai_timestamps_still_return_real_transcript_excerpt():
+    from types import SimpleNamespace
+    from clip_engine import select_candidates
+    class Responses:
+        def create(self,**kwargs):
+            return SimpleNamespace(output_text='{"clips":[{"start":999,"end":1000,"score":99}]}')
+    transcript=[{'start':float(i),'end':float(i+8),'text':'Actual spoken words'} for i in range(0,40,9)]
+    selected=select_candidates(transcript,44,2,20,35,SimpleNamespace(responses=Responses()),'test',lambda *args:None)
+    assert selected and selected[0]['score'] is None
+    assert selected[0]['selection']=='transcript'
+    assert 20<=selected[0]['end']-selected[0]['start']<=35
+    assert selected[0]['end']<=44

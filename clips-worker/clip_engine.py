@@ -11,6 +11,7 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
+from media_tools import tool_path, media_status
 from typing import Callable
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -20,6 +21,11 @@ Progress = Callable[[str, int], None]
 
 
 def command(args: list[str]):
+    args=list(args)
+    if args[0] in ('ffmpeg','ffprobe'):
+        resolved=tool_path(args[0])
+        if not resolved: raise EnvironmentError(media_status()['message'])
+        args[0]=resolved
     result = subprocess.run(args, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=3600,
                             creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
     if result.returncode != 0:
@@ -138,6 +144,27 @@ def parse_json(body: str):
         return json.loads(m.group(0))
 
 
+def transcript_excerpts(groups_: list[dict], duration: float, minimum: int, maximum: int):
+    """Actual transcript boundaries; no fabricated AI ranking or timestamps."""
+    windows=[]
+    target=(minimum+maximum)/2
+    for i, first in enumerate(groups_):
+        choices=[]
+        for last in groups_[i:]:
+            length=last['end']-first['start']
+            if length>maximum:break
+            if length>=minimum and last['end']<=duration:
+                choices.append(last)
+        if not choices:continue
+        last=min(choices,key=lambda g:abs(g['end']-first['start']-target))
+        text=' '.join(g['text'] for g in groups_[i:] if g['end']<=last['end'])
+        windows.append({'start':first['start'],'end':last['end'],'score':None,
+                        'title':' '.join(text.split()[:9])[:90],'hook':first['text'][:160],
+                        'caption':text[:400],'reason':'Transcript excerpt prepared for review.',
+                        'selection':'transcript'})
+    return windows
+
+
 def select_candidates(groups_: list[dict], duration: float, num_clips: int, minimum: int, maximum: int, client: OpenAI, model: str, progress: Progress):
     # Batch ~10 minutes to avoid sending an entire 3h transcript in one request.
     batches: list[list[dict]] = []
@@ -174,9 +201,12 @@ def select_candidates(groups_: list[dict], duration: float, num_clips: int, mini
             candidates.append({"start": round(start, 2), "end": round(end, 2), "score": score, "title": str(c.get("title", "Clip"))[:90],
                                "hook": str(c.get("hook", ""))[:160], "caption": str(c.get("caption", ""))[:400], "reason": str(c.get("reason", ""))[:260]})
         progress(f"Scored highlights {i+1}/{len(batches)}", int(55 + 15 * (i+1) / len(batches)))
+    if not candidates:
+        candidates=transcript_excerpts(groups_,duration,minimum,maximum)
+        if candidates:progress('Preparing transcript excerpts for review',70)
     # Greedy score-based selection with overlap prevention.
     picked = []
-    for c in sorted(candidates, key=lambda d: d["score"], reverse=True):
+    for c in sorted(candidates, key=lambda d: d["score"] if d["score"] is not None else -1, reverse=True):
         overlap = False
         for prior in picked:
             intersection = max(0, min(prior["end"], c["end"]) - max(prior["start"], c["start"]))
@@ -205,7 +235,7 @@ def render(source: Path, output: Path, selected: list[dict], words: list[dict], 
         # force_original_aspect_ratio=increase fills the entire vertical frame; centered crop is a starter limitation.
         # Using a relative subtitle filename with cwd=output prevents escaping issues in Windows absolute paths.
         vf = "scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,setsar=1,subtitles='" + captions.name + "'"
-        args = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-ss", f'{clip["start"]:.3f}', "-i", str(source),
+        args = [tool_path('ffmpeg') or 'ffmpeg', "-hide_banner", "-loglevel", "error", "-y", "-ss", f'{clip["start"]:.3f}', "-i", str(source),
                 "-t", f'{clip["end"]-clip["start"]:.3f}', "-vf", vf, "-c:v", encoder, "-preset", "fast" if encoder == "libx264" else "p4", "-pix_fmt", "yuv420p", "-r", "30", "-c:a", "aac", "-ar", "48000", "-b:a", "128k", "-movflags", "+faststart", str(target)]
         result = subprocess.run(args, cwd=output, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=3600,
                                 creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
@@ -218,8 +248,8 @@ def render(source: Path, output: Path, selected: list[dict], words: list[dict], 
 
 
 def process_video(source: Path, scratch: Path, output: Path, n: int, minimum: int, maximum: int, progress: Progress):
-    if not shutil.which("ffmpeg") or not shutil.which("ffprobe"):
-        raise EnvironmentError("FFmpeg and FFprobe must be installed and on PATH.")
+    if not media_status()['ready']:
+        raise EnvironmentError(media_status()['message'])
     if not os.getenv("OPENAI_API_KEY"):
         raise EnvironmentError("Set OPENAI_API_KEY in .env. Never paste it into a public website.")
     progress("Inspecting video", 3)

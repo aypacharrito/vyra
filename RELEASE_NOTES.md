@@ -1,3 +1,12 @@
+# VYRA 1.4.2 Open Beta
+
+- Install the verified FFmpeg/FFprobe engine privately when Clips first opens. Download progress stays inside VYRA, and no terminal or global PATH editing is needed.
+- Resolve private engine paths directly for probing, audio extraction, rendering and captions. A Repair video tools button is available inside Clips.
+- Check video-engine readiness before accepting an upload, and retain uploaded source files after processing errors.
+- Video-engine archives are pinned, checked against the publisher’s SHA-256, extracted to a staging folder and validated for caption support before activation.
+- Replace a verified older Clips worker when opening the updated studio, after checking that no publishing submission is active.
+- When highlight selection returns no usable timings, prepare real transcript excerpts for review. These are labeled as transcript excerpts and do not receive an invented AI score.
+
 # VYRA 1.4.1 Open Beta
 
 - Accept complete OpenAI secret keys pasted with quotes, a Bearer label, environment-variable wrappers or invisible formatting characters. Remove the obsolete 500-character key limit in both the app and its video worker.

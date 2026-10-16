@@ -22,7 +22,7 @@ import (
 //go:embed web/*
 var content embed.FS
 
-var version = "1.4.1"
+var version = "1.4.2"
 
 type app struct {
 	mu        sync.RWMutex
@@ -234,6 +234,15 @@ func (a *app) launchClips(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer a.launchMu.Unlock()
+	ffmpeg, ffprobe, ready := mediaPaths()
+	checkContext, checkCancel := context.WithTimeout(r.Context(), 10*time.Second)
+	if !ready || verifyMedia(checkContext, ffmpeg, ffprobe) != nil {
+		checkCancel()
+		startMediaSetup()
+		writeJSON(w, 202, map[string]any{"preparing": true})
+		return
+	}
+	checkCancel()
 	if !workerAvailable() {
 		writeJSON(w, 404, map[string]string{"error": "Clips worker isn't beside this EXE. Extract the full VYRA package first."})
 		return
@@ -241,10 +250,24 @@ func (a *app) launchClips(w http.ResponseWriter, r *http.Request) {
 	client := http.Client{Timeout: 800 * time.Millisecond}
 	resp, err := client.Get("http://127.0.0.1:8765/api/status")
 	if err == nil {
+		var existing struct {
+			Version string `json:"version"`
+		}
+		_ = json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&existing)
 		resp.Body.Close()
 		if resp.StatusCode == 200 {
-			writeJSON(w, 200, map[string]string{"url": "http://127.0.0.1:8765", "status": "running"})
-			return
+			if existing.Version == "0.5.0" {
+				writeJSON(w, 200, map[string]string{"url": "http://127.0.0.1:8765", "status": "running"})
+				return
+			}
+			if existing.Version != "0.3.0" && existing.Version != "0.4.0" {
+				writeJSON(w, 409, map[string]string{"error": "Another local service is using the Clips address. Close it, then reload the studio."})
+				return
+			}
+			if err = stopLegacyWorker(); err != nil {
+				writeJSON(w, 409, map[string]string{"error": err.Error()})
+				return
+			}
 		}
 	}
 	a.mu.RLock()
@@ -272,7 +295,7 @@ func (a *app) launchClips(w http.ResponseWriter, r *http.Request) {
 	}
 	cmd := exec.Command(exe, args...)
 	cmd.Dir = workerDirectory()
-	cmd.Env = append(os.Environ(), "OPENAI_API_KEY="+key, "VYRA_DESKTOP_PROFILE="+a.dataDir)
+	cmd.Env = append(os.Environ(), "OPENAI_API_KEY="+key, "VYRA_DESKTOP_PROFILE="+a.dataDir, "VYRA_MEDIA_TOOLS="+mediaBin())
 	hideWorker(cmd)
 	if err := cmd.Start(); err != nil {
 		writeJSON(w, 502, map[string]string{"error": "Could not start Clips worker: " + err.Error()})

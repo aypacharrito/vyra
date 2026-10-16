@@ -37,7 +37,7 @@ Tasks produce text and code and can research current information using OpenAI we
 
 ## Clips Studio
 
-Open **VYRA Clips** in the sidebar: upload, captions, exports, accounts and publishing stay inside the desktop window. Account authorization opens the platform’s official sign-in in your default browser; return to VYRA afterward. If needed, **Set up video tools** installs Python dependencies quietly with progress inside VYRA. Python 3.11+ and FFmpeg/FFprobe must be installed. Dependencies go into a private `.venv` in the worker folder.
+Open **VYRA Clips** in the sidebar: upload, captions, exports, accounts and publishing stay inside the desktop window. Account authorization opens the platform’s official sign-in in your default browser; return to VYRA afterward. If needed, **Set up video tools** installs Python dependencies quietly with progress inside VYRA. Python 3.11+ must be installed. VYRA downloads a verified FFmpeg/FFprobe build into its private local tools folder on first opening Clips. Its progress stays in the app. Use Repair video tools if necessary; no global PATH changes are required. Dependencies go into a private `.venv` in the worker folder.
 
 Clips transcribes spoken audio, selects candidate moments and renders vertical videos locally with word-highlighted captions. Timing comes from the actual transcript timestamps. YouTube, Instagram, Facebook and TikTok integrations require your own authorized accounts, developer credentials and applicable platform approvals. Instagram requires staging storage. TikTok retains fresh confirmation at posting time.
 
