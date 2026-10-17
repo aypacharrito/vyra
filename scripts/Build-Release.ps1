@@ -30,6 +30,8 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Desktop tests failed' }
         node --check web/app.js
         if ($LASTEXITCODE -ne 0) { throw 'Interface validation failed' }
+        node --check clips-worker/static/intelligence.js
+        if ($LASTEXITCODE -ne 0) { throw 'Intelligence workspace validation failed' }
         node --check clips-worker/static/connections.js
         if ($LASTEXITCODE -ne 0) { throw 'Connection wizard validation failed' }
         $vyraClipsUI = Get-Content -LiteralPath (Join-Path $vyraRoot 'clips-worker\static\index.html') -Raw
@@ -77,7 +79,7 @@ try {
         version = $vyraVersion
         url = "https://vyra-five-lac.vercel.app/downloads/$vyraVersion/VYRA-Setup.exe"
         sha256 = $vyraChecksum
-        notes = 'Automatic private video engine setup, FFmpeg/FFprobe discovery without PATH changes, readiness checks before uploads, and preserved source videos after failed processing.'
+        notes = 'Intelligence workspace actions, real account performance, saved post drafts with exact review, and conversation-driven projects and tasks.'
     }
     $vyraJSON = $vyraManifest | ConvertTo-Json
     [IO.File]::WriteAllText((Join-Path $vyraOutput 'latest.json'), $vyraJSON, [Text.UTF8Encoding]::new($false))

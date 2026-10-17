@@ -1,3 +1,13 @@
+# VYRA 1.5.0 Open Beta
+
+- Intelligence can operate VYRA through typed workspace actions: inspect clips and transcripts, save local clip text, prepare and revise post drafts, read publishing activity, cancel pending scheduled posts, manage project notes and AI tasks, and adjust voice/search preferences.
+- Real recent-upload performance from the connected YouTube channel and available Instagram engagement. Lifetime counts and optional time-windowed YouTube Analytics reports are kept distinct; missing measurements remain unknown.
+- Durable post drafts with account binding, revision checks, exact human review and duplicate submission protection. A conversation can fill the review form directly. Published YouTube title/description edits preserve unrelated metadata and require separate editing permission plus review.
+- Use Intelligence from the clip publishing form, keep the current clip selection in conversation context, and see actual actions beside the answer. Background AI tasks can use the same workspace tools without spawning other tasks or submitting posts.
+- Workspace access can be disabled in Settings. Account secrets stay inside their existing encrypted connectors. Optional Google analytics/editing authorization is requested through explicit buttons; existing publishing scopes are not silently expanded.
+- Background project updates survive saves from older open windows. Explicit deletions are tracked so a stale window cannot restore deleted projects.
+- Connected accounts have a Reconnect button. Expired Instagram access produces a specific renewal message without exposing provider tokens or private error text.
+
 # VYRA 1.4.2 Open Beta
 
 - Install the verified FFmpeg/FFprobe engine privately when Clips first opens. Download progress stays inside VYRA, and no terminal or global PATH editing is needed.

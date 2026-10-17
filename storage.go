@@ -12,12 +12,13 @@ import (
 )
 
 type preferences struct {
-	Model        string `json:"model"`
-	Instructions string `json:"instructions"`
-	SpeakReplies bool   `json:"speakReplies"`
-	Language     string `json:"language"`
-	Voice        string `json:"voice"`
-	WebSearch    *bool  `json:"webSearch,omitempty"`
+	Model           string `json:"model"`
+	Instructions    string `json:"instructions"`
+	SpeakReplies    bool   `json:"speakReplies"`
+	Language        string `json:"language"`
+	Voice           string `json:"voice"`
+	WebSearch       *bool  `json:"webSearch,omitempty"`
+	WorkspaceAccess *bool  `json:"workspaceAccess,omitempty"`
 }
 
 func userDataDir() string {
@@ -140,11 +141,12 @@ func (a *app) putWorkspace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var obj struct {
-		Chats     []json.RawMessage `json:"chats"`
-		Projects  []json.RawMessage `json:"projects"`
-		Active    string            `json:"active"`
-		ProjectID string            `json:"projectId"`
-		Mode      string            `json:"mode"`
+		Chats           []json.RawMessage `json:"chats"`
+		Projects        []json.RawMessage `json:"projects"`
+		Active          string            `json:"active"`
+		ProjectID       string            `json:"projectId"`
+		Mode            string            `json:"mode"`
+		DeletedProjects map[string]string `json:"deletedProjects,omitempty"`
 	}
 	if json.Unmarshal(raw, &obj) != nil || len(obj.Chats) > 80 || len(obj.Projects) > 100 || len(obj.Active) > 100 {
 		writeJSON(w, 400, map[string]string{"error": "Invalid workspace backup."})
@@ -152,6 +154,16 @@ func (a *app) putWorkspace(w http.ResponseWriter, r *http.Request) {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	saved, readErr := os.ReadFile(filepath.Join(a.dataDir, "workspace.json"))
+	if readErr != nil && !os.IsNotExist(readErr) {
+		writeJSON(w, 500, map[string]string{"error": "Saved workspace could not be read. Your file has been preserved."})
+		return
+	}
+	obj.Projects, obj.DeletedProjects, err = mergeProjects(saved, obj.Projects, obj.DeletedProjects)
+	if err != nil {
+		writeJSON(w, 409, map[string]string{"error": err.Error()})
+		return
+	}
 	if err = atomicJSON(filepath.Join(a.dataDir, "workspace.json"), obj); err != nil {
 		writeJSON(w, 500, map[string]string{"error": "Could not save workspace on this device."})
 		return

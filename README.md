@@ -47,6 +47,8 @@ Publishing claims are atomic and duplicate active posts are rejected. If a proce
 
 ## Updates and publishing
 
+Intelligence can work with the VYRA workspace, exported clips, post drafts, available account performance and AI tasks. See [Intelligence workspace actions](docs/INTELLIGENCE.md) for examples, current measurements and optional account permissions. Public submissions and changes to published videos use exact review drafts.
+
 VYRA checks its website at startup and every six hours. Installing an update is user initiated. The installer is fetched from a versioned URL and checked against the manifest's SHA-256 hash before it runs.
 
 `VERSION` drives release builds. `scripts/Build-Release.ps1 -PublishWebsite` builds the desktop app and installer, creates a portable archive, computes the setup checksum and updates website downloads and the manifest together. The Windows release workflow publishes the GitHub release, commits generated download files, and dispatches Pages. Vercel should use `website` as its root with the **Other** framework preset. GitHub Pages requires Actions as its deployment source.

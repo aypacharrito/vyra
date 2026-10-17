@@ -308,7 +308,7 @@ func (a *app) beginTask(id string, scheduled bool) (taskRun, error) {
 	go func() {
 		defer s.wg.Done()
 		defer cancel()
-		result, err := a.complete(ctx, chatInput{Messages: []message{{Role: "user", Content: t.Prompt}}, Mode: t.Mode, Context: t.Context, Model: t.Model})
+		result, err := a.complete(ctx, chatInput{Messages: []message{{Role: "user", Content: t.Prompt}}, Mode: t.Mode, Context: t.Context, Model: t.Model, Background: true})
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		delete(s.cancel, t.ID)

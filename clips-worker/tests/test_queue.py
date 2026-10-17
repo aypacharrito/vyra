@@ -30,6 +30,67 @@ def seed(worker, status='approved'):
     return row
 
 
+def seed_clip_and_account(worker, monkeypatch):
+    job='b'*18
+    folder=worker.OUTPUT/job;folder.mkdir()
+    (folder/'clip_01.mp4').write_bytes(b'test video fixture')
+    (folder/'manifest.json').write_text(json.dumps({'clips':[{'file':'clip_01.mp4','start':0,'end':30,'title':'Original','caption':'Original words'}]}),'utf-8')
+    scratch=worker.WORK/job;scratch.mkdir()
+    (scratch/'transcript.json').write_text(json.dumps([{'start':0,'end':1,'word':'Actual speech'}]),'utf-8')
+    monkeypatch.setattr(worker.CONNECT,'info',lambda:{p:{'connected':True,'account':'Test channel'} for p in worker.VALID_PLATFORMS})
+    return {'job_id':job,'filename':'clip_01.mp4','platform':'youtube','title':'Prepared title','caption':'Prepared description','visibility':'private','scheduled_at':''}
+
+
+def test_intelligence_prepares_and_revises_without_publishing(worker,monkeypatch):
+    body=seed_clip_and_account(worker,monkeypatch)
+    monkeypatch.setattr(worker,'handle_post',lambda *_:pytest.fail('A draft must never publish'))
+    with TestClient(worker.app,base_url='http://127.0.0.1:8765') as client:
+        headers={'x-vyra-csrf':worker.APP_TOKEN}
+        assert client.post('/api/intelligence/prepare_post',json=body).status_code==403
+        response=client.post('/api/intelligence/prepare_post',headers=headers,json=body)
+        assert response.status_code==200
+        draft=response.json();assert draft['status']=='draft' and draft['revision']==1
+        revision={**body,'id':draft['id'],'revision':1,'title':'Stronger title'}
+        updated=client.post('/api/intelligence/update_draft',headers=headers,json=revision)
+        assert updated.status_code==200 and updated.json()['revision']==2
+        assert client.post('/api/intelligence/update_draft',headers=headers,json=revision).status_code==409
+        assert client.post('/api/drafts/'+draft['id']+'/submit',headers=headers,json={'confirm':True,'revision':1}).status_code==409
+        assert client.post('/api/drafts/'+draft['id']+'/submit',headers=headers,json={'confirm':False,'revision':2}).status_code==400
+        assert client.get('/api/queue').json()==[]
+        assert client.get('/api/drafts').json()[0]['title']=='Stronger title'
+
+
+def test_draft_is_bound_to_account_and_claimed_once(worker,monkeypatch):
+    body=seed_clip_and_account(worker,monkeypatch)
+    submissions=[]
+    with TestClient(worker.app,base_url='http://127.0.0.1:8765') as client:
+        headers={'x-vyra-csrf':worker.APP_TOKEN}
+        draft=client.post('/api/intelligence/prepare_post',headers=headers,json=body).json()
+        monkeypatch.setattr(worker,'make_post',lambda *args:submissions.append(args) or {'id':'accepted-once'})
+        monkeypatch.setattr(worker,'deliver',lambda *_:None)
+        payload={'confirm':True,'revision':1};path='/api/drafts/'+draft['id']+'/submit'
+        assert client.post(path,headers=headers,json=payload).status_code==200
+        assert client.post(path,headers=headers,json=payload).status_code==409
+        assert len(submissions)==1
+        second=client.post('/api/intelligence/prepare_post',headers=headers,json=body).json()
+        monkeypatch.setattr(worker.CONNECT,'info',lambda:{p:{'connected':True,'account':'Different channel'} for p in worker.VALID_PLATFORMS})
+        assert client.post('/api/drafts/'+second['id']+'/submit',headers=headers,json=payload).status_code==409
+        assert len(submissions)==1
+
+
+def test_clip_actions_use_real_transcript_and_reject_paths(worker,monkeypatch):
+    body=seed_clip_and_account(worker,monkeypatch)
+    with TestClient(worker.app,base_url='http://127.0.0.1:8765') as client:
+        headers={'x-vyra-csrf':worker.APP_TOKEN}
+        read=client.post('/api/intelligence/read_clip',headers=headers,json=body)
+        assert read.json()['transcript']=='Actual speech'
+        saved=client.post('/api/intelligence/update_clip',headers=headers,json={**body,'hook':'Real hook'})
+        assert saved.status_code==200
+        assert client.get('/api/library').json()[0]['clips'][0]['title']=='Prepared title'
+        assert client.post('/api/intelligence/read_clip',headers=headers,json={**body,'job_id':'../../.local'}).status_code==404
+        assert client.post('/api/intelligence/publish',headers=headers,json={**body,'confirm':True}).status_code==404
+
+
 def test_two_delivery_threads_only_submit_once(worker, monkeypatch):
     seed(worker)
     calls = []

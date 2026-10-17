@@ -12,6 +12,8 @@ func TestResearchToolsAndHistory(t *testing.T) {
 	for _, enabled := range []bool{true, false} {
 		a := testApp(t)
 		a.prefs.WebSearch = &enabled
+		access := false
+		a.prefs.WorkspaceAccess = &access
 		a.client.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
 			var body struct {
 				Tools []map[string]string `json:"tools"`

@@ -144,7 +144,7 @@ class Connectors:
                 out[name]['page_id'] = (v or {}).get('page_id', '')
         return out
 
-    def start(self, name):
+    def start(self, name, access='basic'):
         if name not in VALID_PLATFORMS:
             raise ValueError('Unsupported platform')
         if not self.configured(name):
@@ -160,6 +160,11 @@ class Connectors:
                       'response_type':'code', 'scope':'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly',
                       'access_type':'offline','prompt':'consent', 'state': state,
                       'code_challenge': challenge, 'code_challenge_method': 'S256'}
+            if access not in ('basic','analytics','editing'):
+                raise ValueError('Choose basic, analytics, or published-video editing access.')
+            if access=='analytics': params['scope']+=' https://www.googleapis.com/auth/yt-analytics.readonly'
+            if access=='editing': params['scope']+=' https://www.googleapis.com/auth/youtube.force-ssl'
+            params['include_granted_scopes']='true'
             url = 'https://accounts.google.com/o/oauth2/v2/auth?' + urlencode(params)
         elif name == 'instagram':
             destination = urlparse(redirect)

@@ -188,7 +188,7 @@ def homepage():
 
 @app.get('/assets/{name}')
 def asset(name:str):
-    allowed={'connections.js':'text/javascript', 'icon.svg':'image/svg+xml', 'favicon.ico':'image/x-icon'}
+    allowed={'connections.js':'text/javascript', 'intelligence.js':'text/javascript', 'icon.svg':'image/svg+xml', 'favicon.ico':'image/x-icon'}
     if name not in allowed: raise HTTPException(404, 'Asset not found')
     return FileResponse(BASE/'static'/name, media_type=allowed[name])
 
@@ -196,7 +196,7 @@ def asset(name:str):
 @app.get('/api/status')
 def status():
     refresh_desktop_connection()
-    return {'version':'0.5.0','ready':bool(os.getenv('OPENAI_API_KEY')),
+    return {'version':'0.6.0','ready':bool(os.getenv('OPENAI_API_KEY')),
             'platforms':CONNECT.info(), 'media':media_status(), 'render_engine':'FFmpeg','post_safety':'consent per destination'}
 
 
@@ -280,11 +280,11 @@ def download(job_id:str,filename:str):
 
 
 @app.post('/api/oauth/{provider}/start')
-def login(provider:str):
+def login(provider:str,access:str='basic'):
     if provider not in VALID_PLATFORMS:
         raise HTTPException(404,'Unknown platform')
     try:
-        return {'url': CONNECT.start(provider)}
+        return {'url': CONNECT.start(provider,access) if provider=='youtube' else CONNECT.start(provider)}
     except ValueError as exc:
         raise HTTPException(400, str(exc))
 
@@ -435,3 +435,7 @@ def cancel(item_id:str):
     if not cur.rowcount:
         raise HTTPException(409,'Could not cancel; the job may have started sending already.')
     return {'cancelled':True}
+
+
+from intelligence import register_intelligence
+register_intelligence(app, globals())
