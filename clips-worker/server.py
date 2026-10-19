@@ -16,10 +16,12 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, JSONResponse
 from starlette.middleware.trustedhost import TrustedHostMiddleware
+from starlette.concurrency import run_in_threadpool
 from clip_engine import process_video
 from media_tools import media_status
 from desktop_connection import refresh_desktop_connection
 from social import Connectors, Vault, VALID_PLATFORMS, facebook_post, instagram_post, tiktok_post, youtube_upload
+from publishing_status import delivery_view, instagram_readiness, youtube_checks
 
 BASE = Path(__file__).resolve().parent
 load_dotenv(BASE / '.env')
@@ -35,6 +37,9 @@ CONNECT = Connectors(VAULT)
 DB = LOCAL / 'queue.sqlite3'
 APP_TOKEN = secrets.token_urlsafe(32)
 LOCK = threading.RLock()
+PUBLISHING_LOCK = threading.Lock()
+PUBLISHING_HEALTH = {}
+LAST_PUBLISHING_CHECK = 0.0
 JOBS: dict[str,dict] = {}
 ALLOWED = {'.mp4','.mov','.mkv','.webm'}
 NAME = re.compile(r'^clip_\d{2}\.mp4$')
@@ -63,6 +68,7 @@ def database():
         conn.close()
 
 with database() as conn:
+    conn.execute('CREATE TABLE IF NOT EXISTS publishing_checks (post_id TEXT PRIMARY KEY, result_json TEXT NOT NULL)')
     # A previous process may have ended after the provider accepted an upload.
     # Keep it for review instead of duplicating the submission after restart.
     conn.execute("UPDATE postings SET status='needs_review', error='Worker closed during submission. Check the platform before trying again.' WHERE status='sending'")
@@ -76,6 +82,32 @@ def utc_now():
 def read_posts():
     with database() as conn:
         return [dict(r) for r in conn.execute('SELECT * FROM postings ORDER BY scheduled_at DESC LIMIT 200').fetchall()]
+
+
+def publishing_accounts():
+    accounts = CONNECT.info()
+    for platform, health in PUBLISHING_HEALTH.copy().items():
+        if accounts[platform]['connected'] and health['identity'] == accounts[platform].get('account'):
+            accounts[platform]['publishing'] = health['result']
+    return accounts
+
+
+def refresh_publishing():
+    global LAST_PUBLISHING_CHECK
+    # Refreshes never call upload or visibility-update paths. Concurrent
+    # browser windows share one bounded check instead of consuming API quota.
+    with PUBLISHING_LOCK:
+        if time.monotonic() - LAST_PUBLISHING_CHECK < 30:
+            return {'platforms': publishing_accounts(), 'cached': True}
+        results = youtube_checks(CONNECT, read_posts())
+        with database() as conn:
+            for post_id, result in results.items():
+                conn.execute('INSERT OR REPLACE INTO publishing_checks VALUES (?,?)', (post_id, json.dumps(result)))
+        identity = CONNECT.info()['instagram'].get('account')
+        health = instagram_readiness(CONNECT)
+        PUBLISHING_HEALTH['instagram'] = {'identity': identity, 'result': health}
+        LAST_PUBLISHING_CHECK = time.monotonic()
+    return {'platforms': publishing_accounts(), 'cached': False}
 
 
 def progress(job_id, message, pct):
@@ -196,8 +228,8 @@ def asset(name:str):
 @app.get('/api/status')
 def status():
     refresh_desktop_connection()
-    return {'version':'0.6.0','ready':bool(os.getenv('OPENAI_API_KEY')),
-            'platforms':CONNECT.info(), 'media':media_status(), 'render_engine':'FFmpeg','post_safety':'consent per destination'}
+    return {'version':'0.6.1','ready':bool(os.getenv('OPENAI_API_KEY')),
+            'platforms':publishing_accounts(), 'media':media_status(), 'render_engine':'FFmpeg','post_safety':'consent per destination'}
 
 
 @app.post('/api/jobs')
@@ -325,12 +357,15 @@ async def choose_facebook_page(req:Request):
 
 @app.get('/api/oauth/{provider}/callback')
 def callback(provider:str,state:str='',code:str='',error:str=''):
+    global LAST_PUBLISHING_CHECK
     if provider not in VALID_PLATFORMS:
         raise HTTPException(404,'Unsupported provider')
     if error:
         return RedirectResponse('/?error='+quote(error),status_code=302)
     try:
         data=CONNECT.finish(provider,state,code)
+        PUBLISHING_HEALTH.pop(provider,None)
+        LAST_PUBLISHING_CHECK=0.0
     except ValueError as exc:
         return RedirectResponse('/?error='+quote(str(exc)[:200]),status_code=302)
     except Exception:
@@ -351,9 +386,12 @@ def creator_options():
 
 @app.delete('/api/accounts/{provider}')
 def disconnect(provider:str):
+    global LAST_PUBLISHING_CHECK
     if provider not in VALID_PLATFORMS:
         raise HTTPException(404,'Unsupported provider')
     VAULT.delete(provider)
+    PUBLISHING_HEALTH.pop(provider,None)
+    LAST_PUBLISHING_CHECK=0.0
     return {'disconnected':provider}
 
 
@@ -392,8 +430,11 @@ def make_post(body,scheduled):
             raise HTTPException(400,'Choose a future date and time with a timezone offset.')
     else:
         when=datetime.now(timezone.utc)
-    if provider=='instagram' and not all(os.getenv(k) for k in ('R2_ACCOUNT_ID','R2_ACCESS_KEY_ID','R2_SECRET_ACCESS_KEY','R2_BUCKET')):
-        raise HTTPException(400,'Configure a private R2 staging bucket for Instagram in .env first.')
+    if provider=='instagram':
+        health=instagram_readiness(CONNECT)
+        PUBLISHING_HEALTH['instagram']={'identity':CONNECT.info()['instagram'].get('account'),'result':health}
+        if not health['ready']:
+            raise HTTPException(400,health['message']+' '+health.get('setup_message','')+' No post was sent.')
     record={'id':uuid.uuid4().hex[:20],'job_id':job_id,'filename':filename,
             'platform':provider,'title':title,'caption':caption,'visibility':visibility,
             'scheduled_at':when.astimezone(timezone.utc).isoformat(),'status':'approved',
@@ -411,20 +452,27 @@ def make_post(body,scheduled):
 @app.post('/api/publish')
 async def publish(req:Request):
     body=await req.json()
-    record=make_post(body,False)
+    record=await run_in_threadpool(make_post,body,False)
     threading.Thread(target=deliver,args=(record['id'],),daemon=True).start()
     return {'id':record['id'],'status':'sending','note':'Submission initiated. Check publishing queue for provider response.'}
 
 
 @app.post('/api/schedule')
 async def schedule(req:Request):
-    record=make_post(await req.json(),True)
+    record=await run_in_threadpool(make_post,await req.json(),True)
     return {'id':record['id'],'status':'approved','scheduled_at':record['scheduled_at']}
 
 
 @app.get('/api/queue')
 def queue():
-    return read_posts()
+    with database() as conn:
+        checks={r['post_id']:json.loads(r['result_json']) for r in conn.execute('SELECT * FROM publishing_checks')}
+    return [{**row,'delivery':delivery_view(row,checks.get(row['id']))} for row in read_posts()]
+
+
+@app.post('/api/publishing/refresh')
+def check_publishing():
+    return refresh_publishing()
 
 
 @app.post('/api/queue/{item_id}/cancel')

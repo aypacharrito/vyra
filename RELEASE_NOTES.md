@@ -1,3 +1,10 @@
+# VYRA 1.5.1 Open Beta
+
+- Publishing activity checks the actual YouTube upload, processing and visibility result, shows when it was checked, and links directly to the video and YouTube Studio. Refreshing status never uploads again or changes privacy.
+- Private and unlisted uploads explain why they do not appear publicly on the channel. Requested visibility stays distinct from the platform's actual result. Invalid or missing upload receipts require review.
+- Instagram checks saved sign-in and video hosting before publishing. Rejected connections and missing setup appear on the account card and block submission. A rejected preflight preserves an editable draft and reports that no post was sent.
+- Intelligence reads the same verified publishing results. Existing submissions, encrypted connections, clips and drafts are preserved.
+
 # VYRA 1.5.0 Open Beta
 
 - Intelligence can operate VYRA through typed workspace actions: inspect clips and transcripts, save local clip text, prepare and revise post drafts, read publishing activity, cancel pending scheduled posts, manage project notes and AI tasks, and adjust voice/search preferences.

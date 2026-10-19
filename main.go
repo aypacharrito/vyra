@@ -258,11 +258,11 @@ func (a *app) launchClips(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&existing)
 		resp.Body.Close()
 		if resp.StatusCode == 200 {
-			if existing.Version == "0.6.0" {
+			if existing.Version == "0.6.1" {
 				writeJSON(w, 200, map[string]string{"url": "http://127.0.0.1:8765", "status": "running"})
 				return
 			}
-			if existing.Version != "0.3.0" && existing.Version != "0.4.0" && existing.Version != "0.5.0" {
+			if existing.Version != "0.3.0" && existing.Version != "0.4.0" && existing.Version != "0.5.0" && existing.Version != "0.6.0" {
 				writeJSON(w, 409, map[string]string{"error": "Another local service is using the Clips address. Close it, then reload the studio."})
 				return
 			}

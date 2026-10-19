@@ -79,7 +79,7 @@ try {
         version = $vyraVersion
         url = "https://vyra-five-lac.vercel.app/downloads/$vyraVersion/VYRA-Setup.exe"
         sha256 = $vyraChecksum
-        notes = 'Intelligence workspace actions, real account performance, saved post drafts with exact review, and conversation-driven projects and tasks.'
+        notes = 'Verified YouTube upload status and privacy, direct Studio links, and Instagram sign-in and upload readiness checks.'
     }
     $vyraJSON = $vyraManifest | ConvertTo-Json
     [IO.File]::WriteAllText((Join-Path $vyraOutput 'latest.json'), $vyraJSON, [Text.UTF8Encoding]::new($false))

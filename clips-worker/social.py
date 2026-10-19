@@ -8,6 +8,7 @@ import base64
 import hashlib
 import json
 import os
+import re
 import secrets
 import threading
 import time
@@ -389,8 +390,13 @@ def youtube_upload(connectors: Connectors, video: Path, title: str, description:
                 continue
             if response.ok:
                 obj=check(response)
-                return {'id':obj.get('id'),'url':'https://www.youtube.com/watch?v='+str(obj.get('id')),
-                        'visibility':privacy}
+                video_id=obj.get('id')
+                if not isinstance(video_id,str) or not re.fullmatch(r'[A-Za-z0-9_-]{11}',video_id):
+                    raise RuntimeError('YouTube did not return a video ID. Check YouTube Studio before retrying to avoid a duplicate.')
+                actual=obj.get('status',{})
+                return {'id':video_id,'url':'https://www.youtube.com/watch?v='+video_id,
+                        'requested_visibility':privacy,'visibility':actual.get('privacyStatus'),
+                        'upload_status':actual.get('uploadStatus')}
             check(response)
     raise RuntimeError('YouTube did not confirm the upload; check YouTube Studio before retrying.')
 

@@ -21,7 +21,7 @@ The interface does not expose arbitrary HTTP requests, shell commands, arbitrary
 
 ## Post review and recovery
 
-Preparing a draft does not publish or schedule it. Each draft has an account, immutable destination, revision and submission state. A human reviews its exact title, description, visibility and schedule, then confirms submission in Clips. Revisions invalidate an older review. A changed connected account blocks submission. A transactional claim prevents duplicate submission; uncertain remote outcomes become review_required and never automatically retry. Existing queue delivery rules still apply.
+Preparing a draft does not publish or schedule it. Each draft has an account, immutable destination, revision and submission state. A human reviews its exact title, description, visibility and schedule, then confirms submission in Clips. Revisions invalidate an older review. A changed connected account blocks submission. A transactional claim prevents duplicate submission; uncertain remote outcomes become review_required and never automatically retry. Existing queue delivery rules still apply. Publishing activity refreshes read-only YouTube processing and actual visibility, preserves the original receipt, and links to Studio. Instagram checks saved sign-in and hosting before queueing; a preflight rejection sends nothing and keeps the draft editable.
 
 Published-video edits currently support YouTube titles and descriptions. The saved edit includes the original text and ETag; approval rechecks ownership and staleness, preserves mutable snippet fields such as tags/category/language, and leaves privacy unchanged. Instagram draft descriptions can be prepared locally; editing existing Instagram posts is not implemented.
 

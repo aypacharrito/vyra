@@ -4,6 +4,7 @@ import re
 import uuid
 from datetime import datetime, timezone
 from fastapi import HTTPException, Request
+from starlette.concurrency import run_in_threadpool
 from performance import performance, youtube_video, update_youtube_video
 
 
@@ -118,7 +119,9 @@ def register_intelligence(app, env):
                     conn.execute('UPDATE drafts SET payload=?,revision=? WHERE id=?',(json.dumps(draft),revision,draft['id']))
                 return {**draft,'revision':revision,'status':'draft','review_required':True}
             if action=='drafts': return drafts()
-            if action=='queue': return env['read_posts']()
+            if action=='queue':
+                await run_in_threadpool(env['refresh_publishing'])
+                return env['queue']()
             if action=='cancel_scheduled': return env['cancel'](str(body.get('id','')))
             if action=='performance':
                 return performance(env['CONNECT'],str(body.get('platform','youtube')),body.get('limit',20),body.get('days',28),body.get('watch_time',False) is True)
@@ -153,10 +156,20 @@ def register_intelligence(app, env):
                 result=update_youtube_video(env['CONNECT'],draft['video_id'],draft['title'],draft['caption'],draft['etag'])
                 outcome={'id':result.get('id'),'status':'updated'}
             else:
-                record=env['make_post']({**draft,'confirm':True},bool(draft['scheduled_at']))
+                record=await run_in_threadpool(env['make_post'],{**draft,'confirm':True},bool(draft['scheduled_at']))
                 if not draft['scheduled_at']:
                     env['threading'].Thread(target=env['deliver'],args=(record['id'],),daemon=True).start()
                 outcome={'id':record['id'],'status':'scheduled' if draft['scheduled_at'] else 'sending'}
+        except HTTPException as error:
+            # make_post validates before adding any queue row or starting an
+            # upload. A preflight failure is safe to correct and review again.
+            if draft['target'] != 'youtube_edit':
+                with env['database']() as conn:
+                    conn.execute("UPDATE drafts SET status='draft' WHERE id=?",(draft_id,))
+                raise error
+            with env['database']() as conn:
+                conn.execute("UPDATE drafts SET status='review_required' WHERE id=?",(draft_id,))
+            raise HTTPException(409,'The video edit needs review. Check YouTube Studio before trying again.') from None
         except Exception:
             with env['database']() as conn:
                 conn.execute("UPDATE drafts SET status='review_required' WHERE id=?",(draft_id,))

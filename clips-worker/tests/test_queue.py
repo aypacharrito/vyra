@@ -128,6 +128,39 @@ def test_failed_delivery_is_not_retried(worker, monkeypatch):
     assert worker.read_posts()[0]['status'] == 'needs_review'
 
 
+def test_refresh_status_is_protected_and_preserves_submission(worker,monkeypatch):
+    row=seed(worker,'submitted')
+    with worker.database() as conn:
+        conn.execute('UPDATE postings SET remote_json=? WHERE id=?',(json.dumps({'id':'abcdefghijk'}),row['id']))
+    calls=[]
+    monkeypatch.setattr(worker,'youtube_checks',lambda *_:calls.append('read') or {row['id']:{'state':'private','label':'Uploaded · Private','verified':True}})
+    monkeypatch.setattr(worker,'instagram_readiness',lambda *_:{'ready':False,'verified':False,'message':'Reconnect Instagram.'})
+    monkeypatch.setattr(worker,'handle_post',lambda *_:pytest.fail('Refresh must never send a post'))
+    with TestClient(worker.app,base_url='http://127.0.0.1:8765') as client:
+        assert client.post('/api/publishing/refresh').status_code==403
+        headers={'x-vyra-csrf':worker.APP_TOKEN}
+        assert client.post('/api/publishing/refresh',headers=headers).status_code==200
+        assert client.post('/api/publishing/refresh',headers=headers).json()['cached']
+        result=client.get('/api/queue').json()[0]
+        assert result['status']=='submitted' and result['visibility']=='private'
+        assert result['delivery']['state']=='private' and '/abcdefghijk/edit' in result['delivery']['studio_url']
+    assert calls==['read']
+
+
+def test_blocked_instagram_draft_stays_editable_and_sends_nothing(worker,monkeypatch):
+    body=seed_clip_and_account(worker,monkeypatch)
+    body.update(platform='instagram',visibility='reels')
+    monkeypatch.setattr(worker,'instagram_readiness',lambda *_:{'ready':False,'verified':False,'message':'Reconnect Instagram (code 190).','setup_message':'Upload hosting is missing.'})
+    monkeypatch.setattr(worker,'handle_post',lambda *_:pytest.fail('Blocked Instagram must not publish'))
+    with TestClient(worker.app,base_url='http://127.0.0.1:8765') as client:
+        headers={'x-vyra-csrf':worker.APP_TOKEN}
+        draft=client.post('/api/intelligence/prepare_post',headers=headers,json=body).json()
+        result=client.post('/api/drafts/'+draft['id']+'/submit',headers=headers,json={'confirm':True,'revision':1})
+        assert result.status_code==400 and 'No post was sent' in result.json()['detail']
+        assert client.get('/api/drafts/'+draft['id']).json()['status']=='draft'
+        assert client.get('/api/queue').json()==[]
+
+
 def test_concurrent_post_creation_prevents_duplicate(worker, monkeypatch, tmp_path):
     video = tmp_path / 'clip_01.mp4'
     video.write_bytes(b'test video')
