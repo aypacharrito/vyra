@@ -1,6 +1,6 @@
 {
-  "version": "1.4.2",
-  "url": "https://vyra-five-lac.vercel.app/downloads/1.4.2/VYRA-Setup.exe",
-  "sha256": "3a50ec36a57abd2a2c58d9dc95ecf3306364326ff497bb5e9870e39179831190",
-  "notes": "Automatic private video engine setup, FFmpeg/FFprobe discovery without PATH changes, readiness checks before uploads, and preserved source videos after failed processing."
+  "version": "1.5.2",
+  "url": "https://vyra-five-lac.vercel.app/downloads/1.5.2/VYRA-Setup.exe",
+  "sha256": "b40aac001db52567799b9ebd2e038d7d8291af7c11a1f431f13d217b6e900970",
+  "notes": "Public defaults for new YouTube posts, verified publishing results, and Instagram reconnection compatibility."
 }
