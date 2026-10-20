@@ -91,7 +91,7 @@ def test_youtube_upload_requires_receipt_and_uses_returned_privacy(monkeypatch,t
     initial=Response({});initial.headers={'Location':'https://www.googleapis.com/upload/test-session'}
     monkeypatch.setattr(social.requests,'post',lambda *a,**k:initial)
     monkeypatch.setattr(social.requests,'put',lambda *a,**k:Response({'id':'abcdefghijk','status':{'privacyStatus':'private','uploadStatus':'uploaded'}}))
-    result=social.youtube_upload(connect(),video,'Title','Description','public')
+    result=social.youtube_upload(connect(),video,'Title','Description')
     assert result['visibility']=='private' and result['requested_visibility']=='public'
     monkeypatch.setattr(social.requests,'put',lambda *a,**k:Response({}))
     with pytest.raises(RuntimeError,match='did not return a video ID'):

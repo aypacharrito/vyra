@@ -56,7 +56,7 @@ def register_intelligence(app, env):
             raise ValueError('Provide a title up to 100 characters and a description within the platform limit.')
         target=str(body.get('target','post'))
         data={'id':uuid.uuid4().hex[:20],'target':target,'platform':platform,'title':title,'caption':caption,
-            'visibility':str(body.get('visibility') or ('private' if platform=='youtube' else 'reels')),
+            'visibility':str(body.get('visibility') or ('public' if platform=='youtube' else 'reels')),
             'scheduled_at':str(body.get('scheduled_at') or ''),'created_at':now(),'account':identity(platform),'account_id':account_id(platform)}
         if target=='post':
             validate_destination(platform,data['visibility'],data['scheduled_at'])

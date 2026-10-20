@@ -39,6 +39,7 @@ APP_TOKEN = secrets.token_urlsafe(32)
 LOCK = threading.RLock()
 PUBLISHING_LOCK = threading.Lock()
 PUBLISHING_HEALTH = {}
+CONNECTION_EVENTS = {}
 LAST_PUBLISHING_CHECK = 0.0
 JOBS: dict[str,dict] = {}
 ALLOWED = {'.mp4','.mov','.mkv','.webm'}
@@ -86,6 +87,8 @@ def read_posts():
 
 def publishing_accounts():
     accounts = CONNECT.info()
+    for platform, event in CONNECTION_EVENTS.copy().items():
+        accounts[platform]['last_connection_attempt'] = event
     for platform, health in PUBLISHING_HEALTH.copy().items():
         if accounts[platform]['connected'] and health['identity'] == accounts[platform].get('account'):
             accounts[platform]['publishing'] = health['result']
@@ -228,7 +231,7 @@ def asset(name:str):
 @app.get('/api/status')
 def status():
     refresh_desktop_connection()
-    return {'version':'0.6.1','ready':bool(os.getenv('OPENAI_API_KEY')),
+    return {'version':'0.6.2','ready':bool(os.getenv('OPENAI_API_KEY')),
             'platforms':publishing_accounts(), 'media':media_status(), 'render_engine':'FFmpeg','post_safety':'consent per destination'}
 
 
@@ -364,11 +367,14 @@ def callback(provider:str,state:str='',code:str='',error:str=''):
         return RedirectResponse('/?error='+quote(error),status_code=302)
     try:
         data=CONNECT.finish(provider,state,code)
+        CONNECTION_EVENTS[provider]={'ok':True,'at':utc_now(),'message':'Account connection saved.'}
         PUBLISHING_HEALTH.pop(provider,None)
         LAST_PUBLISHING_CHECK=0.0
     except ValueError as exc:
+        CONNECTION_EVENTS[provider]={'ok':False,'at':utc_now(),'message':str(exc)[:200]}
         return RedirectResponse('/?error='+quote(str(exc)[:200]),status_code=302)
     except Exception:
+        CONNECTION_EVENTS[provider]={'ok':False,'at':utc_now(),'message':'Connection was not completed. Check your app settings and granted permissions, then try again.'}
         return RedirectResponse('/?error='+quote('Connection was not completed. Check your app settings and granted permissions, then try again.'),status_code=302)
     return RedirectResponse('/?connected='+quote(data['provider']),status_code=302)
 
@@ -404,7 +410,7 @@ def make_post(body,scheduled):
     video=clip_path(job_id,filename)
     title=str(body.get('title','')).strip()[:100]
     caption=str(body.get('caption','')).strip()[:2200]
-    visibility=str(body.get('visibility','private'))
+    visibility=str(body.get('visibility') or ('public' if provider=='youtube' else 'reels'))
     if not title or not caption:
         raise HTTPException(400,'Title and caption are required.')
     if body.get('confirm') is not True:

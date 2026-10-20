@@ -45,6 +45,43 @@ def required(*names):
         raise ValueError('Configure these environment variables in .env: ' + ', '.join(missing))
 
 
+def instagram_authorization(data):
+    """Meta now wraps the short-lived credential in a single data item.
+
+    Accept the older flat shape too; never print either credential response.
+    Ambiguous or incomplete responses must not replace a working connection.
+    """
+    if isinstance(data, dict) and 'data' in data:
+        items = data['data']
+        if not isinstance(items, list) or len(items) != 1:
+            raise ValueError('Instagram returned an incomplete account authorization. Reconnect the intended account.')
+        data = items[0]
+    if not isinstance(data, dict) or not isinstance(data.get('access_token'), str) or not data['access_token'] or not str(data.get('user_id') or '').isdigit():
+        raise ValueError('Instagram did not return a valid account authorization. Your previous connection has been preserved.')
+    return data
+
+
+def instagram_token_response(response):
+    if response.ok:
+        return check(response)
+    # Provider text can echo credentials. Classify it internally and expose
+    # only our fixed messages, never raw token responses or request URLs.
+    try:
+        data=response.json()
+        error=data.get('error',{})
+        text=str(error.get('message','') if isinstance(error,dict) else '')+' '+str(data.get('error_message',''))
+    except (ValueError,AttributeError):
+        text=''
+    text=text.lower()
+    if 'secret' in text:
+        raise ValueError('Instagram rejected the app secret. In App settings, use the Instagram App Secret from Meta’s API setup with Instagram login page.')
+    if 'redirect' in text:
+        raise ValueError('Instagram rejected the callback address. Match the callback in VYRA and Meta’s Instagram business login settings exactly.')
+    if 'code' in text and any(word in text for word in ('matching','used','expired','invalid')):
+        raise ValueError('Instagram could not use this sign-in code. Start a fresh reconnect from VYRA.')
+    raise ValueError('Instagram could not complete the token exchange (HTTP '+str(response.status_code)+'). Check the Instagram App ID and App Secret in App settings.')
+
+
 class Vault:
     """Local encrypted tokens/config. Windows wraps the vault key with user-bound DPAPI."""
     def __init__(self, directory: Path):
@@ -221,12 +258,15 @@ class Connectors:
             resp = requests.post('https://api.instagram.com/oauth/access_token', data={
                 'client_id':self.settings.get(provider, 'client_id'),'client_secret':self.settings.get(provider, 'client_secret'),
                 'grant_type':'authorization_code','redirect_uri':uri,'code':code},timeout=TIMEOUT)
-            raw = check(resp)
+            raw = instagram_authorization(instagram_token_response(resp))
             upgraded = requests.get('https://graph.instagram.com/access_token', params={
                 'grant_type':'ig_exchange_token','client_secret':self.settings.get(provider, 'client_secret'),
                 'access_token':raw['access_token']},timeout=TIMEOUT)
-            v = check(upgraded)
+            v = instagram_token_response(upgraded)
+            if not isinstance(v,dict) or not isinstance(v.get('access_token'),str) or not v['access_token']:
+                raise ValueError('Instagram did not confirm the renewed connection. Your previous connection has been preserved.')
             v['user_id'] = str(raw['user_id'])
+            v['scope'] = raw.get('permissions', '')
             v['account'] = 'Instagram Professional: ' + v['user_id']
         elif provider == 'facebook':
             base = 'https://graph.facebook.com/' + facebook_version()
@@ -354,7 +394,7 @@ def facebook_post(connectors: Connectors, video: Path, title: str, caption: str)
     return {'id': video_id, 'status': 'submitted for Facebook processing', 'page': account['account']}
 
 
-def youtube_upload(connectors: Connectors, video: Path, title: str, description: str, privacy='private'):
+def youtube_upload(connectors: Connectors, video: Path, title: str, description: str, privacy='public'):
     if privacy not in ('private','unlisted','public'):
         raise ValueError('Invalid YouTube visibility')
     token,_ = connectors.token('youtube')

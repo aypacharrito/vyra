@@ -91,6 +91,43 @@ class Response:
     def json(self): return self.data
 
 
+@pytest.mark.parametrize('wrapped',[False,True])
+def test_instagram_login_saves_current_and_legacy_response_privately(connectors,monkeypatch,wrapped):
+    connectors.settings.save('instagram',{'client_id':'123','client_secret':'private-test-secret',
+        'redirect_uri':'https://vyra-five-lac.vercel.app/api/instagram-callback'})
+    url=connectors.start('instagram');state=parse_qs(urlparse(url).query)['state'][0]
+    short={'access_token':'private-short-token','user_id':'456','permissions':'instagram_business_basic,instagram_business_content_publish'}
+    monkeypatch.setattr(social.requests,'post',lambda *a,**k:Response({'data':[short]} if wrapped else short))
+    monkeypatch.setattr(social.requests,'get',lambda *a,**k:Response({'access_token':'private-long-token','expires_in':5184000}))
+    result=connectors.finish('instagram',state,'private-one-time-code')
+    assert result['account']=='Instagram Professional: 456'
+    saved=connectors.vault.get('instagram')
+    assert saved['access_token']=='private-long-token' and saved['user_id']=='456'
+    assert 'private-' not in json.dumps(result) and 'private-long-token' not in json.dumps(connectors.info())
+    assert b'private-long-token' not in connectors.vault.data_path.read_bytes()
+
+
+def test_incomplete_instagram_renewal_preserves_previous_connection(connectors,monkeypatch):
+    connectors.settings.save('instagram',{'client_id':'123','client_secret':'private-test-secret',
+        'redirect_uri':'https://vyra-five-lac.vercel.app/api/instagram-callback'})
+    connectors.vault.save('instagram',{'access_token':'previous-private-token','user_id':'456'})
+    state=parse_qs(urlparse(connectors.start('instagram')).query)['state'][0]
+    monkeypatch.setattr(social.requests,'post',lambda *a,**k:Response({'data':[]}))
+    monkeypatch.setattr(social.requests,'get',lambda *a,**k:pytest.fail('Incomplete credentials must not be exchanged'))
+    with pytest.raises(ValueError,match='incomplete'):
+        connectors.finish('instagram',state,'one-time-code')
+    assert connectors.vault.get('instagram')['access_token']=='previous-private-token'
+
+
+def test_instagram_provider_failure_explains_setup_without_echoing_secret():
+    class Rejected(Response):
+        ok=False
+        status_code=400
+    with pytest.raises(ValueError,match='rejected the app secret') as caught:
+        social.instagram_token_response(Rejected({'error_message':'Invalid client secret private-secret-should-not-appear'}))
+    assert 'private-secret-should-not-appear' not in str(caught.value)
+
+
 def test_facebook_upload_uses_selected_page_and_validates_endpoint(connectors,tmp_path,monkeypatch):
     video=tmp_path/'clip.mp4'; video.write_bytes(b'test clip')
     connectors.vault.save('facebook', {'access_token':'user-token', 'page_access_token':'page-token',

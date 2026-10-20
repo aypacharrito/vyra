@@ -1,3 +1,9 @@
+# VYRA 1.5.2 Open Beta
+
+- New YouTube posts default to Public in the publishing form, Intelligence drafts and the upload request. Explicit visibility choices remain available for individual posts, and activity checks the actual privacy YouTube applied.
+- Instagram reconnection supports Meta's current wrapped authorization response as well as the earlier response format. Incomplete responses preserve the saved connection and credentials remain encrypted.
+- The desktop and Intelligence use the same Studio version check when replacing an older idle worker.
+
 # VYRA 1.5.1 Open Beta
 
 - Publishing activity checks the actual YouTube upload, processing and visibility result, shows when it was checked, and links directly to the video and YouTube Studio. Refreshing status never uploads again or changes privacy.

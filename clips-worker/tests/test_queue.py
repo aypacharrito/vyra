@@ -60,6 +60,20 @@ def test_intelligence_prepares_and_revises_without_publishing(worker,monkeypatch
         assert client.get('/api/drafts').json()[0]['title']=='Stronger title'
 
 
+def test_youtube_defaults_public_and_preserves_explicit_private_drafts(worker,monkeypatch):
+    body=seed_clip_and_account(worker,monkeypatch)
+    body.pop('visibility')
+    with TestClient(worker.app,base_url='http://127.0.0.1:8765') as client:
+        headers={'x-vyra-csrf':worker.APP_TOKEN}
+        public=client.post('/api/intelligence/prepare_post',headers=headers,json=body)
+        assert public.status_code==200 and public.json()['visibility']=='public'
+        private=client.post('/api/intelligence/prepare_post',headers=headers,json={**body,'visibility':'private'})
+        assert private.status_code==200 and private.json()['visibility']=='private'
+        assert client.get('/api/queue').json()==[]
+    prepared=worker.make_post({**body,'confirm':True},False)
+    assert prepared['visibility']=='public' and prepared['status']=='approved'
+
+
 def test_draft_is_bound_to_account_and_claimed_once(worker,monkeypatch):
     body=seed_clip_and_account(worker,monkeypatch)
     submissions=[]

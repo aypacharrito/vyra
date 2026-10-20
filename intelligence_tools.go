@@ -57,7 +57,7 @@ func intelligenceTools() []map[string]any {
 		functionTool("vyra_clips", "List exported clips with their actual job_id and file. Search title/caption with query; never invent IDs.", map[string]any{"query": s(), "limit": n()}),
 		functionTool("vyra_read_clip", "Read a discovered clip's text, timestamps and actual spoken transcript before rewriting its metadata.", map[string]any{"job_id": s(), "filename": s()}),
 		functionTool("vyra_update_clip", "Save a local clip's title, caption and hook. This edits export metadata, not the rendered subtitles or already published/scheduled posts.", map[string]any{"job_id": s(), "filename": s(), "title": s(), "caption": s(), "hook": s()}),
-		functionTool("vyra_prepare_post", "Save a new publishing draft and fill its review form. Does not publish or schedule until the person reviews it. Empty scheduled_at means publish now after review; otherwise ISO timestamp with timezone. YouTube defaults private; Instagram/Facebook visibility reels. A revision is bound to the selected account.", map[string]any{"job_id": s(), "filename": s(), "platform": schemaEnum("youtube", "instagram", "facebook", "tiktok"), "title": s(), "caption": s(), "visibility": s(), "scheduled_at": s()}),
+		functionTool("vyra_prepare_post", "Save a new publishing draft and fill its review form. Does not publish or schedule until the person reviews it. Empty scheduled_at means publish now after review; otherwise ISO timestamp with timezone. YouTube defaults public; Instagram/Facebook visibility reels. A revision is bound to the selected account.", map[string]any{"job_id": s(), "filename": s(), "platform": schemaEnum("youtube", "instagram", "facebook", "tiktok"), "title": s(), "caption": s(), "visibility": s(), "scheduled_at": s()}),
 		functionTool("vyra_post_drafts", "List saved publishing drafts and their review status. No publishing is performed.", map[string]any{}),
 		functionTool("vyra_update_draft", "Revise an existing unsubmitted post draft using its current revision from vyra_post_drafts. Clears any older review by advancing the revision. Preserve destination and schedule unless the user requests a change.", map[string]any{"id": s(), "revision": n(), "title": s(), "caption": s(), "visibility": s(), "scheduled_at": s()}),
 		functionTool("vyra_publishing_activity", "Read scheduled and submitted post status. These are provider responses, not performance measurements.", map[string]any{}),
@@ -185,7 +185,7 @@ func (a *app) clipsAction(ctx context.Context, action string, args map[string]an
 		_ = json.NewDecoder(io.LimitReader(probeResponse.Body, 1<<20)).Decode(&probeStatus)
 		probeResponse.Body.Close()
 	}
-	if probeError != nil || probeStatus.Version != "0.6.0" {
+	if probeError != nil || probeStatus.Version != clipsWorkerVersion {
 		result, err := a.localHandler(ctx, "POST", "/api/clips/launch", map[string]any{})
 		if err != nil {
 			return nil, err
