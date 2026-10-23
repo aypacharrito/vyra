@@ -22,7 +22,7 @@ import (
 //go:embed web/*
 var content embed.FS
 
-var version = "1.5.9"
+var version = "1.5.10"
 
 const clipsWorkerVersion = "0.6.6"
 
@@ -99,6 +99,19 @@ func (a *app) routes() http.Handler {
 		model := a.model
 		a.mu.RUnlock()
 		writeJSON(w, 200, map[string]any{"version": version, "local": true, "openai": configured, "verified": verified, "model": model, "worker": workerAvailable(), "desktop": desktopStatus()})
+	})
+	mux.HandleFunc("POST /api/window", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Action string `json:"action"`
+		}
+		if !parseBody(w, r, &body) {
+			return
+		}
+		if !desktopWindowAction(body.Action) {
+			writeJSON(w, 400, map[string]string{"error": "Window action unavailable"})
+			return
+		}
+		writeJSON(w, 200, map[string]bool{"ok": true})
 	})
 	mux.HandleFunc("POST /api/settings", a.setConnection)
 	mux.HandleFunc("DELETE /api/settings/key", func(w http.ResponseWriter, r *http.Request) {

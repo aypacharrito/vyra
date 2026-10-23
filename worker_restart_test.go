@@ -1,7 +1,7 @@
 package main
 
 import (
-	"strings"
+	"encoding/binary"
 	"testing"
 )
 
@@ -14,14 +14,43 @@ func TestWorkerUpgradeRecognizesPreviousRelease(t *testing.T) {
 			t.Fatalf("unexpected legacy worker match: %q", version)
 		}
 	}
-	// The script executed on Windows must agree with the launcher's decision.
-	script := legacyWorkerStopScript()
-	if strings.Contains(script, "__LEGACY_VERSIONS__") {
-		t.Fatal("unexpanded script version list")
+}
+
+func TestWorkerCommandAcceptsBothShippedLaunchers(t *testing.T) {
+	args := []string{`C:\Users\Owner\VYRA\.venv\Scripts\python.exe`, "-m", "uvicorn", "server:app", "--host", "127.0.0.1", "--port", "8765"}
+	if !isClipsWorkerCommand(args, 8765) || !isClipsWorkerCommand(append(args, "--no-access-log"), 8765) {
+		t.Fatal("must recognize desktop and batch launchers")
 	}
-	for _, version := range legacyClipsVersions {
-		if !strings.Contains(script, "'"+version+"'") {
-			t.Fatalf("Windows restart script rejects launcher-supported %s", version)
+	for _, bad := range [][]string{append(args, "--reload"), append([]string{"other.exe"}, args[1:]...), {"python.exe", "server.py"}} {
+		if isClipsWorkerCommand(bad, 8765) {
+			t.Fatalf("unexpected command accepted: %v", bad)
 		}
+	}
+	if isClipsWorkerCommand(args, 8766) {
+		t.Fatal("wrong port accepted")
+	}
+}
+
+func TestWindowsListenerTableMatchesOnlyExactLoopbackPort(t *testing.T) {
+	table := make([]byte, 4+24*2)
+	binary.LittleEndian.PutUint32(table, 2)
+	for i := 0; i < 2; i++ {
+		row := table[4+i*24 : 4+(i+1)*24]
+		binary.LittleEndian.PutUint32(row, 2)
+		copy(row[4:8], []byte{127, 0, 0, 1})
+		binary.BigEndian.PutUint16(row[8:10], uint16(8765+i))
+		binary.LittleEndian.PutUint32(row[20:24], uint32(100+i))
+	}
+	pid, err := workerPIDFromTCPTable(table, 8765)
+	if err != nil || pid != 100 {
+		t.Fatalf("pid %d, error %v", pid, err)
+	}
+	copy(table[8:12], []byte{0, 0, 0, 0})
+	pid, err = workerPIDFromTCPTable(table, 8765)
+	if err != nil || pid != 0 {
+		t.Fatal("wildcard/unrelated listener matched")
+	}
+	if _, err = workerPIDFromTCPTable(table[:10], 8765); err == nil {
+		t.Fatal("truncated table accepted")
 	}
 }

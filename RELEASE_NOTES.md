@@ -1,3 +1,11 @@
+# VYRA 1.5.10
+
+- Replaced PowerShell/WMI/Get-NetTCPConnection worker replacement with direct Windows listener/process APIs. Verifies the legacy VYRA status, exact loopback listener, held process handle, Windows session and Python/uvicorn arguments before replacing it. Both the desktop launcher and shipped batch launcher are recognized; unrelated processes and active uploads stay running. Failures now identify the check that blocked recovery.
+- Added Windows integration tests with disposable local worker processes for idle desktop/batch recovery, active-upload protection and rejection of an unrelated command. The normal Windows release test gate executes these before publishing. Portable regression tests cover listener decoding and command validation.
+- Removed the standard Windows caption strip. A captionless window retains its native resize frame and has small minimize, maximize/restore and close buttons plus a draggable top strip. Window commands pass through the local authenticated API and execute on the UI thread.
+- Fixed the delegated navigation handler matching body[data-view] when clicking ordinary content or window controls, causing unintended studio relaunch attempts. Only navigation buttons now select a view.
+- Removed the extra VYRA / CLIP STUDIO overline above the studio headline so the top follows the original concept. Retains the 1.5.9 startup design, 1.5.8 posting fixes and all prior clip features.
+
 # VYRA 1.5.9
 
 - Fixed Windows refusing to replace worker 0.6.5 during the upgrade to 0.6.6. The launcher and replacement script now share one supported legacy-version list, with a regression check for the previous release.

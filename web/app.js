@@ -3,6 +3,15 @@
 const root = document.querySelector('#main');
 const csrf = document.querySelector('meta[name="vyra-session"]')?.content || '';
 const isDesktop = location.hostname === '127.0.0.1' || location.hostname === 'localhost';
+if(window.VYRA_NATIVE){
+ document.querySelector('#window-chrome').hidden=false;
+ document.body.classList.add('native-window');
+ const windowAction=action=>request('/api/window','POST',{action}).catch(error=>toast(error.message));
+ document.querySelectorAll('[data-window]').forEach(button=>button.addEventListener('click',()=>windowAction(button.dataset.window)));
+ document.querySelector('#window-drag').addEventListener('mousedown',event=>{if(event.button===0&&event.detail===1)windowAction('drag')});
+ document.querySelector('#window-drag').addEventListener('dblclick',()=>windowAction('maximize'));
+}
+
 const dataKey = 'vyra_studio_v1';
 const html = s => String(s ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const load = () => { try { const s = JSON.parse(localStorage.getItem(dataKey));return s && typeof s==='object' ? s : {} } catch {return {}} };
@@ -28,7 +37,7 @@ const request=async(path,method='GET',body)=>{
  const d=await res.json().catch(()=>({error:'Unable to parse server response'}));if(!res.ok)throw Error(d.error||'Request failed');return d;
 };
 const btn=(title,action,kind='secondary-btn')=>`<button class="${kind}" data-action="${action}">${title}</button>`;
-function header(name){document.querySelector('#breadcrumb').textContent=name.toUpperCase();document.querySelectorAll('[data-view]').forEach(x=>x.classList.toggle('selected',x.dataset.view===state.view));}
+function header(name){document.querySelector('#breadcrumb').textContent=name.toUpperCase();document.querySelectorAll('button[data-view]').forEach(x=>x.classList.toggle('selected',x.dataset.view===state.view));}
 function layout(view){if(!['clips','projects','agents','settings'].includes(view))view='clips';document.body.dataset.view=view;if(state.view==='chat'){state.draft=document.querySelector('#chat-input')?.value||state.draft;if(voiceState.active)stopVoice(true)}state.view=view;header(({home:'Discover',chat:'Intelligence',clips:'VYRA Clips',projects:'Projects',agents:'AI Tasks',settings:'Settings'})[view]||view);renderHistory();render();}
 function renderHistory(){}
 function home(){return `<div class="page"><section class="home-hero"><div class="hero-orbit"></div><div class="hero-copy"><span class="overline">WELCOME TO A NEW KIND OF WORKSPACE</span><h1 class="headline">Intelligence,<br><span class="gradient">without the limits.</span></h1><p class="lead">One place to think, create, build and bring ideas to life. Meet your personal intelligence system.</p><div class="hero-button">${btn('✦ &nbsp; Start with VYRA','new-chat','primary-btn')}${btn('Explore Creator Studio &nbsp; ↗','clips','secondary-btn')}</div></div></section><div class="section-title">Explore your workspace <small>BUILT AROUND YOU</small></div><div class="tile-grid"><button class="tile" data-action="chat"><span class="tile-icon">◈</span><span class="tile-arrow">↗</span><h3>VYRA Intelligence</h3><p>Ask, brainstorm, analyze and write with OpenAI models in your private workspace.</p></button><button class="tile" data-action="clips"><span class="tile-icon">▷</span><span class="tile-arrow">↗</span><h3>VYRA Clips</h3><p>Turn long videos into vertical highlights for Shorts, Reels and TikTok.</p></button><button class="tile" data-action="projects"><span class="tile-icon">▦</span><span class="tile-arrow">↗</span><h3>Projects & ideas</h3><p>Keep your creative work and next big ideas organized in one library.</p></button></div><div class="mini-banner"><div><h3>THE VYRA ECOSYSTEM</h3><p>Designed for ambitious builders. Inspired by the precision of modern AI and the immersive feel of <b>Steam</b>.</p></div>${btn('Connect OpenAI →','settings','ghost-btn')}</div></div>`}
@@ -351,7 +360,7 @@ document.addEventListener('submit',async e=>{
 });
 window.addEventListener('beforeunload',()=>{stopVoice(true);stopSpeaking();if(workspaceLoaded&&isDesktop)fetch('/api/workspace',{method:'PUT',headers:{'Content-Type':'application/json','X-VYRA-SESSION':csrf},body:JSON.stringify(workspaceData()),keepalive:true}).catch(()=>{})});
 
-document.addEventListener('click',e=>{const n=e.target.closest('[data-action],[data-view],[data-chat],[data-prompt],[data-project]');if(!n)return;if(n.dataset.action){const f=actions[n.dataset.action];if(f)f();return}if(n.dataset.view){layout(n.dataset.view);return}if(n.dataset.chat){if(state.pending){toast('Stop or finish the current reply before switching conversations.');return}state.active=n.dataset.chat;save();layout('chat');return}if(n.dataset.prompt){if(n.dataset.mode)state.mode=n.dataset.mode;if(!state.active)createChat();else layout('chat');const t=document.querySelector('#chat-input');if(!t||state.pending)return;t.value=n.dataset.prompt;t.focus();return}if(n.dataset.project){const p=state.projects.find(x=>x.id===n.dataset.project);if(p){const note=prompt('Notes for '+p.name,p.note||'');if(note!==null){p.note=note.slice(0,15000);p.updated=date();save();render()}}}});
+document.addEventListener('click',e=>{const n=e.target.closest('[data-action],button[data-view],[data-chat],[data-prompt],[data-project]');if(!n)return;if(n.dataset.action){const f=actions[n.dataset.action];if(f)f();return}if(n.dataset.view){layout(n.dataset.view);return}if(n.dataset.chat){if(state.pending){toast('Stop or finish the current reply before switching conversations.');return}state.active=n.dataset.chat;save();layout('chat');return}if(n.dataset.prompt){if(n.dataset.mode)state.mode=n.dataset.mode;if(!state.active)createChat();else layout('chat');const t=document.querySelector('#chat-input');if(!t||state.pending)return;t.value=n.dataset.prompt;t.focus();return}if(n.dataset.project){const p=state.projects.find(x=>x.id===n.dataset.project);if(p){const note=prompt('Notes for '+p.name,p.note||'');if(note!==null){p.note=note.slice(0,15000);p.updated=date();save();render()}}}});
 document.addEventListener('submit',e=>{if(e.target.id==='chat-form')submitChat(e);if(e.target.id==='settings-form')submitSettings(e)});
 document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();layout('clips');clipsContainer?.querySelector('iframe')?.contentWindow.postMessage({type:'vyra.newSource'},'http://127.0.0.1:8765')}if(e.key==='Enter'&&!e.shiftKey&&e.target.id==='chat-input'){e.preventDefault();e.target.form.requestSubmit()}});
 document.querySelector('#top-settings').addEventListener('click',()=>layout('settings'));

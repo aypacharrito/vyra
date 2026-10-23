@@ -27,3 +27,5 @@ func desktopStatus() map[string]any {
 	return map[string]any{"engine": "headless", "nativeWindow": false, "visible": false}
 }
 func openExternal(url string) error { return exec.Command("xdg-open", url).Start() }
+
+func desktopWindowAction(action string) bool { return false }

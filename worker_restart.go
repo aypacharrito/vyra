@@ -1,6 +1,11 @@
 package main
 
-import "strings"
+import (
+	"encoding/binary"
+	"errors"
+	"strconv"
+	"strings"
+)
 
 // Both the launcher and Windows replacement check use this list. Keeping a
 // second hard-coded list caused upgrades from 0.6.5 to fail on Windows.
@@ -15,29 +20,48 @@ func isLegacyClipsVersion(version string) bool {
 	return false
 }
 
-func legacyWorkerStopScript() string {
-	quoted := make([]string, len(legacyClipsVersions))
-	for i, version := range legacyClipsVersions {
-		quoted[i] = "'" + version + "'"
+// Decode MIB_TCPTABLE_OWNER_PID with strict bounds and a loopback-only match.
+func workerPIDFromTCPTable(table []byte, port int) (uint32, error) {
+	if len(table) < 4 {
+		return 0, errors.New("Truncated Windows listener table")
 	}
-	return strings.Replace(legacyWorkerStopTemplate, "__LEGACY_VERSIONS__", strings.Join(quoted, ","), 1)
+	count := uint64(binary.LittleEndian.Uint32(table[:4]))
+	if count > uint64((len(table)-4)/24) {
+		return 0, errors.New("Truncated Windows listener rows")
+	}
+	var owner uint32
+	for i := uint64(0); i < count; i++ {
+		row := table[4+i*24 : 4+(i+1)*24]
+		if binary.LittleEndian.Uint32(row[:4]) != 2 || string(row[4:8]) != string([]byte{127, 0, 0, 1}) || int(binary.BigEndian.Uint16(row[8:10])) != port {
+			continue
+		}
+		pid := binary.LittleEndian.Uint32(row[20:24])
+		if pid == 0 {
+			return 0, errors.New("Invalid Clips listener owner")
+		}
+		if owner != 0 && owner != pid {
+			return 0, errors.New("Multiple processes own the Clips address")
+		}
+		owner = pid
+	}
+	return owner, nil
 }
 
-const legacyWorkerStopTemplate = `$ErrorActionPreference='Stop'
-$base='http://127.0.0.1:8765'
-$status=Invoke-RestMethod "$base/api/status" -TimeoutSec 3
-if($status.version -notin @(__LEGACY_VERSIONS__) -or $status.render_engine -notin @('FFmpeg required','FFmpeg') -or $status.post_safety -ne 'consent per destination'){throw 'Unexpected local service'}
-$queue=Invoke-RestMethod "$base/api/queue" -TimeoutSec 3
-if($queue | Where-Object {$_.status -in @('sending','submitting','publishing')}){exit 42}
-$connection=Get-NetTCPConnection -LocalAddress '127.0.0.1' -LocalPort 8765 -State Listen
-if(@($connection).Count -ne 1){throw 'Unexpected listener'}
-$worker=Get-CimInstance Win32_Process -Filter "ProcessId=$($connection.OwningProcess)"
-$session=(Get-Process -Id $PID).SessionId
-if($worker.SessionId -ne $session -or $worker.CommandLine -notmatch '\s-m uvicorn server:app --host 127\.0\.0\.1 --port 8765 --no-access-log\s*$'){throw 'Unexpected worker process'}
-Stop-Process -Id $worker.ProcessId -ErrorAction Stop
-for($attempt=0;$attempt -lt 30;$attempt++){
-  if(-not (Get-NetTCPConnection -LocalAddress '127.0.0.1' -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue)){exit 0}
-  Start-Sleep -Milliseconds 100
+func isClipsWorkerCommand(args []string, port int) bool {
+	if len(args) != 8 && len(args) != 9 {
+		return false
+	}
+	// Windows Python and its venv redirector quote arguments differently.
+	exe := strings.ToLower(strings.ReplaceAll(args[0], "\\", "/"))
+	exe = exe[strings.LastIndex(exe, "/")+1:]
+	if exe != "python.exe" && exe != "pythonw.exe" {
+		return false
+	}
+	expected := []string{"-m", "uvicorn", "server:app", "--host", "127.0.0.1", "--port", strconv.Itoa(port)}
+	for i, value := range expected {
+		if args[i+1] != value {
+			return false
+		}
+	}
+	return len(args) == 8 || args[8] == "--no-access-log"
 }
-throw 'Worker address did not release'
-`

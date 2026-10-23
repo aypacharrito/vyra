@@ -44,6 +44,27 @@ type nativeMinMax struct{ Reserved, MaxSize, MaxPosition, MinTrackSize, MaxTrack
 func nativeText(s string) *uint16 { p, _ := syscall.UTF16PtrFromString(s); return p }
 func desktopMessage(hwnd uintptr, msg uint32, wp, lp uintptr) uintptr {
 	switch msg {
+	case 0x8001: // Window controls are dispatched on the owning UI thread.
+		switch wp {
+		case 1:
+			desktopUser32.NewProc("ShowWindow").Call(hwnd, 6)
+		case 2:
+			maximized, _, _ := desktopUser32.NewProc("IsZoomed").Call(hwnd)
+			mode := uintptr(3)
+			if maximized != 0 {
+				mode = 9
+			}
+			desktopUser32.NewProc("ShowWindow").Call(hwnd, mode)
+		case 3:
+			desktopUser32.NewProc("PostMessageW").Call(hwnd, 0x0010, 0, 0)
+		case 4:
+			var point nativePoint
+			desktopUser32.NewProc("GetCursorPos").Call(uintptr(unsafe.Pointer(&point)))
+			desktopUser32.NewProc("ReleaseCapture").Call()
+			position := uintptr(uint32(uint16(point.X)) | uint32(uint16(point.Y))<<16)
+			desktopUser32.NewProc("SendMessageW").Call(hwnd, 0x00a1, 2, position)
+		}
+		return 0
 	case 0x0113: // WM_TIMER: diagnostic capture after the first page has painted.
 		desktopUser32.NewProc("KillTimer").Call(hwnd, 1)
 		captureDesktopPreview(pendingDesktopPreview)
@@ -87,7 +108,7 @@ func openDesktop(url string) error {
 		return fmt.Errorf("Could not register VYRA window: %v", registerErr)
 	}
 	defer desktopUser32.NewProc("UnregisterClassW").Call(uintptr(unsafe.Pointer(wc.Name)), instance)
-	hwnd, _, windowErr := desktopUser32.NewProc("CreateWindowExW").Call(0, uintptr(unsafe.Pointer(wc.Name)), uintptr(unsafe.Pointer(nativeText("VYRA — Clip Studio"))), 0x00cf0000, 0x80000000, 0x80000000, 1500, 940, 0, 0, instance, 0)
+	hwnd, _, windowErr := desktopUser32.NewProc("CreateWindowExW").Call(0, uintptr(unsafe.Pointer(wc.Name)), uintptr(unsafe.Pointer(nativeText("VYRA — Clip Studio"))), 0x800f0000, 0x80000000, 0x80000000, 1500, 940, 0, 0, instance, 0)
 	if hwnd == 0 {
 		return fmt.Errorf("Could not create VYRA window: %v", windowErr)
 	}
@@ -158,4 +179,16 @@ func showExisting() {
 		desktopUser32.NewProc("ShowWindow").Call(hwnd, 9)
 		desktopUser32.NewProc("SetForegroundWindow").Call(hwnd)
 	}
+}
+
+// WS_POPUP with a thick resize frame retains native snapping/resizing without
+// the Windows caption strip. Only fixed local UI actions cross this boundary.
+func desktopWindowAction(action string) bool {
+	code := map[string]uintptr{"minimize": 1, "maximize": 2, "close": 3, "drag": 4}[action]
+	hwnd := desktopHWND.Load()
+	if code == 0 || hwnd == 0 {
+		return false
+	}
+	ok, _, _ := desktopUser32.NewProc("PostMessageW").Call(hwnd, 0x8001, code, 0)
+	return ok != 0
 }
