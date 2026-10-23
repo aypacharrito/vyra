@@ -1,6 +1,6 @@
 {
-  "version": "1.5.2",
-  "url": "https://vyra-five-lac.vercel.app/downloads/1.5.2/VYRA-Setup.exe",
-  "sha256": "b40aac001db52567799b9ebd2e038d7d8291af7c11a1f431f13d217b6e900970",
-  "notes": "Public defaults for new YouTube posts, verified publishing results, and Instagram reconnection compatibility."
+  "version": "1.5.3",
+  "url": "https://vyra-five-lac.vercel.app/downloads/1.5.3/VYRA-Setup.exe",
+  "sha256": "f06f02b22d9247eda55613308838b9729659876139928a9588f2dc2db0aed252",
+  "notes": "Automatic cleanup after confirmed posting, durable Instagram processing, and private in-app video storage setup."
 }
