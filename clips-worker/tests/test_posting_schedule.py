@@ -132,3 +132,20 @@ def test_one_failed_destination_restores_clip_even_if_another_succeeded(worker,m
  worker.store_checks({first['id']:{'verified':True,'state':'public','checked_at':worker.utc_now()},second['id']:{'verified':True,'state':'failed','checked_at':worker.utc_now()}})
  assert worker.library() and worker.clip_path(body['job_id'],body['filename']).exists()
  assert next(x for x in worker.queue() if x['id']==second['id'])['local_copy']=='saved'
+
+
+def test_http_conflicts_distinguish_duplicate_from_occupied_time(worker, monkeypatch):
+ body=seed_clip_and_account(worker,monkeypatch);other=second_clip(worker,body)
+ when=datetime.now(timezone.utc)+timedelta(days=1)
+ worker.make_post({**body,'confirm':True,'scheduled_at':when.isoformat()},True)
+ headers={'X-VYRA-CSRF':worker.APP_TOKEN}
+ with TestClient(worker.app,base_url='http://127.0.0.1:8765') as client:
+  duplicate=client.post('/api/schedule',headers=headers,json={**body,'confirm':True,'scheduled_at':when.isoformat()})
+  assert duplicate.status_code==409
+  assert duplicate.headers['X-Vyra-Conflict']=='duplicate_post'
+  assert 'already has a queued' in duplicate.json()['detail']
+  occupied=client.post('/api/schedule',headers=headers,json={**other,'confirm':True,'scheduled_at':when.isoformat()})
+  assert occupied.status_code==409
+  assert occupied.headers['X-Vyra-Conflict']=='posting_time'
+  assert '90 minutes' in occupied.json()['detail']
+ assert len(worker.read_posts())==1

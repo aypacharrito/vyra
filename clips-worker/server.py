@@ -328,7 +328,7 @@ def asset(name:str):
 @app.get('/api/status')
 def status():
     refresh_desktop_connection()
-    return {'version':'0.6.5','ready':bool(os.getenv('OPENAI_API_KEY')),
+    return {'version':'0.6.6','ready':bool(os.getenv('OPENAI_API_KEY')),
             'platforms':publishing_accounts(), 'media':media_status(), 'render_engine':'FFmpeg','post_safety':'consent per destination'}
 
 
@@ -674,10 +674,10 @@ def make_post(body,scheduled):
         clip_path(job_id, filename)
         duplicate=conn.execute("SELECT id FROM postings WHERE job_id=? AND filename=? AND platform=? AND status IN ('approved','sending','submitted') LIMIT 1",(job_id,filename,provider)).fetchone()
         if duplicate:
-            raise HTTPException(409,'This clip already has a queued or submitted post for this account. Check activity first.')
+            raise HTTPException(409,'This clip already has a queued or submitted post for this account. Check Publishing first.', headers={'X-Vyra-Conflict':'duplicate_post'})
         available=posting_schedule.next_free(when,posting_schedule.occupied(conn,provider))
         if abs((available-when).total_seconds())>1:
-            raise HTTPException(409,'This account already has a nearby post. Leave 90 minutes between posts. The next available time is '+available.isoformat()+'. Choose automatic timing again or select a later time.')
+            raise HTTPException(409,'This account already has a nearby post. Leave 90 minutes between posts. The next available time is '+available.isoformat()+'. Choose automatic timing again or select a later time.', headers={'X-Vyra-Conflict':'posting_time'})
         conn.execute('INSERT INTO postings VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',tuple(record.values()))
         conn.commit()
     return record

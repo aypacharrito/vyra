@@ -1,3 +1,10 @@
+# VYRA 1.5.8
+
+- Fixed the publishing dialog treating all HTTP 409 responses as occupied posting times. Already queued/submitted clips now show the actual duplicate warning instead of repeatedly refreshing the time and asking for confirmation.
+- Added explicit conflict identifiers to distinguish duplicate posts from platform spacing conflicts. Only a real time conflict refreshes the suggestion; edited titles/captions remain intact and the new time requires review.
+- Submit automatic schedules using the exact suggested timestamp, preserving seconds and timezone offsets instead of passing through the minute-only local input.
+- Worker protocol 0.6.6 refreshes old running workers. Includes the 1.5.7 stylesheet route correction and the complete Clip Studio redesign.
+
 # VYRA 1.5.7
 
 - Fixed the installed desktop shell returning 404 for `/studio.css`. The 1.5.6 package contained the redesign stylesheet, but the Go server did not expose its URL, so the old shell styling remained. The new explicit route serves its embedded CSS with the correct MIME type.

@@ -80,5 +80,7 @@
   }catch(error){toast(error.message);button.disabled=false;await loadLibrary()}
  });
  window.preparePostAutomatically=prepare;
+ // Keep the server's exact instant; datetime-local is a minute-only display.
+ window.getPostSchedule=()=>el('timingMode').value==='recommended'&&plan?plan.scheduled_at:null;
  window.refreshPostTiming=()=>prepare(false,true);
 })();
