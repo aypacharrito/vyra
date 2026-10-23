@@ -106,6 +106,7 @@ def test_staging_keeps_processing_files_and_retries_failed_delete(connectors, mo
             if should_fail[0]: raise RuntimeError('offline')
             deleted.append(kwargs['Key'])
     monkeypatch.setattr(storage, 'client', lambda _: (S3(), 'vyra-test'))
+    monkeypatch.setattr(storage, 'verify_url', lambda *_: None)
     video = tmp_path/'clip.mp4'; video.write_bytes(b'video')
     key, _ = storage.stage(connectors.vault, video)
     storage.attach(connectors.vault, key, '123')

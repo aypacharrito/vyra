@@ -38,7 +38,7 @@ def seed_clip_and_account(worker, monkeypatch):
     scratch=worker.WORK/job;scratch.mkdir()
     (scratch/'transcript.json').write_text(json.dumps([{'start':0,'end':1,'word':'Actual speech'}]),'utf-8')
     monkeypatch.setattr(worker.CONNECT,'info',lambda:{p:{'connected':True,'account':'Test channel'} for p in worker.VALID_PLATFORMS})
-    return {'job_id':job,'filename':'clip_01.mp4','platform':'youtube','title':'Prepared title','caption':'Prepared description','visibility':'private','scheduled_at':''}
+    return {'job_id':job,'filename':'clip_01.mp4','platform':'youtube','title':'Prepared title','caption':'Prepared description','visibility':'public','scheduled_at':''}
 
 
 def test_intelligence_prepares_and_revises_without_publishing(worker,monkeypatch):
@@ -60,7 +60,7 @@ def test_intelligence_prepares_and_revises_without_publishing(worker,monkeypatch
         assert client.get('/api/drafts').json()[0]['title']=='Stronger title'
 
 
-def test_youtube_defaults_public_and_preserves_explicit_private_drafts(worker,monkeypatch):
+def test_youtube_defaults_public_and_rejects_new_private_drafts(worker,monkeypatch):
     body=seed_clip_and_account(worker,monkeypatch)
     body.pop('visibility')
     with TestClient(worker.app,base_url='http://127.0.0.1:8765') as client:
@@ -68,7 +68,7 @@ def test_youtube_defaults_public_and_preserves_explicit_private_drafts(worker,mo
         public=client.post('/api/intelligence/prepare_post',headers=headers,json=body)
         assert public.status_code==200 and public.json()['visibility']=='public'
         private=client.post('/api/intelligence/prepare_post',headers=headers,json={**body,'visibility':'private'})
-        assert private.status_code==200 and private.json()['visibility']=='private'
+        assert private.status_code==400
         assert client.get('/api/queue').json()==[]
     prepared=worker.make_post({**body,'confirm':True},False)
     assert prepared['visibility']=='public' and prepared['status']=='approved'
@@ -181,7 +181,7 @@ def test_concurrent_post_creation_prevents_duplicate(worker, monkeypatch, tmp_pa
     monkeypatch.setattr(worker, 'clip_path', lambda *args: video)
     monkeypatch.setattr(worker.CONNECT, 'info', lambda: {'youtube': {'connected': True}})
     body = {'platform': 'youtube', 'job_id': 'a' * 18, 'filename': video.name,
-            'title': 'Test', 'caption': 'Test caption', 'visibility': 'private', 'confirm': True}
+            'title': 'Test', 'caption': 'Test caption', 'visibility': 'public', 'confirm': True}
 
     def create():
         try:

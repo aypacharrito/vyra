@@ -18,7 +18,7 @@ func stopLegacyWorker() error {
 	script := `$ErrorActionPreference='Stop'
 $base='http://127.0.0.1:8765'
 $status=Invoke-RestMethod "$base/api/status" -TimeoutSec 3
-if($status.version -notin @('0.3.0','0.4.0','0.5.0','0.6.0','0.6.1') -or $status.render_engine -notin @('FFmpeg required','FFmpeg') -or $status.post_safety -ne 'consent per destination'){throw 'Unexpected local service'}
+if($status.version -notin @('0.3.0','0.4.0','0.5.0','0.6.0','0.6.1','0.6.2') -or $status.render_engine -notin @('FFmpeg required','FFmpeg') -or $status.post_safety -ne 'consent per destination'){throw 'Unexpected local service'}
 $queue=Invoke-RestMethod "$base/api/queue" -TimeoutSec 3
 if($queue | Where-Object {$_.status -in @('sending','submitting','publishing')}){throw 'Publishing is still active'}
 $connection=Get-NetTCPConnection -LocalAddress '127.0.0.1' -LocalPort 8765 -State Listen

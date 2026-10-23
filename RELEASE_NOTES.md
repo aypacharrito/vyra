@@ -1,3 +1,15 @@
+# VYRA 1.5.4
+
+- Bump the worker protocol to 0.6.3 so old running 0.6.2 workers are detected and replaced safely instead of silently reused.
+
+- Generate three grounded, platform-specific title/description candidates, select one editorially and fill the review form automatically. Reuse saved copy to avoid paying again on every reopen; Regenerate requests a fresh version. Preserve text typed while AI is working.
+- Choose a future posting window in the device timezone. Use recent account posting-time/engagement associations when enough comparable results exist; otherwise identify it as a starter experiment. Avoid nearby queued posts. Keep the suggested time visible and allow Post now/manual overrides. No reach or virality guarantee.
+- New YouTube posts are Public only. Instagram/Facebook publish Reels. TikTok requires an explicit Public selection at posting time; do not silently send private copies or schedule past its fresh-confirmation requirement. Existing reviewed queue records are not rewritten.
+- Add Delete on each clip. Cancel approved posts and unsent drafts, stop pending Instagram containers from publishing, remove local MP4/subtitles, and retry Windows playback locks. Existing social posts and external source files remain.
+- Test Instagram sign-in plus an actual temporary-storage upload and signed GET, with no social publication. Use explicit S3v4 signing and safe stage-specific failure messages/codes. Distinguish format rejection from failed media downloads.
+- Keep local files when YouTube reports a visibility different from the requested Public setting.
+- Repair the TikTok upload receipt's account reference and disable interactions unless separately implemented/authorized.
+
 # VYRA 1.5.3
 
 - Auto-delete local MP4s and generated subtitle files ten minutes after all queued destinations confirm posting. Keep receipts, pending/uncertain posts, unsent drafts and original user footage.

@@ -3,6 +3,9 @@ import os
 import re
 import secrets
 import time
+import tempfile
+from pathlib import Path
+import requests
 
 FIELDS = {'account_id': 'R2_ACCOUNT_ID', 'access_key_id': 'R2_ACCESS_KEY_ID',
           'secret_access_key': 'R2_SECRET_ACCESS_KEY', 'bucket': 'R2_BUCKET'}
@@ -45,12 +48,25 @@ def _save(vault, body):
 
 def client(vault):
     import boto3
+    from botocore.config import Config
     value = config(vault)
     if not all(value.values()):
         raise ValueError('Set up temporary video storage in Instagram App settings before publishing.')
     return boto3.client('s3', endpoint_url=f'https://{value["account_id"]}.r2.cloudflarestorage.com',
                         aws_access_key_id=value['access_key_id'], aws_secret_access_key=value['secret_access_key'],
-                        region_name='auto'), value['bucket']
+                        region_name='auto', config=Config(signature_version='s3v4',
+                            connect_timeout=8, read_timeout=30, retries={'max_attempts': 1})), value['bucket']
+
+
+def verify_url(url, expected):
+    """Verify signed GET access, never sign a GET then accidentally test it as HEAD."""
+    try:
+        with requests.get(url, headers={'Range': 'bytes=0-15'}, stream=True,
+                          timeout=12, allow_redirects=False) as response:
+            if response.status_code not in (200, 206) or response.raw.read(16) != expected:
+                raise ValueError('Temporary video URL could not be read. Check R2 Object Read & Write access and the bucket.')
+    except requests.RequestException:
+        raise ValueError('Temporary video storage could not be reached. Check the connection and run Test posting setup again.') from None
 
 
 def stage(vault, video):
@@ -64,10 +80,22 @@ def stage(vault, video):
     try:
         s3.upload_file(str(video), bucket, key, ExtraArgs={'ContentType': 'video/mp4'})
         url = s3.generate_presigned_url('get_object', Params={'Bucket': bucket, 'Key': key}, ExpiresIn=86400)
+        with video.open('rb') as source: verify_url(url, source.read(16))
         return key, url
     except Exception:
         release(vault, key)
         raise ValueError('Instagram video storage upload failed. Check the bucket and Object Read & Write credentials in App settings.') from None
+
+
+def test(vault):
+    key = None
+    try:
+        with tempfile.TemporaryDirectory(prefix='vyra-storage-check-') as folder:
+            sample = Path(folder) / 'probe.mp4'; sample.write_bytes(b'VYRA storage test - not a social post')
+            key, _ = stage(vault, sample)
+        return {'ready': True, 'message': 'Temporary storage upload and signed video URL verified. No social post was created.'}
+    finally:
+        if key: release(vault, key)
 
 
 def attach(vault, key, container):

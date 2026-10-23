@@ -24,7 +24,7 @@ var content embed.FS
 
 var version = "1.5.2"
 
-const clipsWorkerVersion = "0.6.2"
+const clipsWorkerVersion = "0.6.3"
 
 type app struct {
 	mu        sync.RWMutex
@@ -264,7 +264,7 @@ func (a *app) launchClips(w http.ResponseWriter, r *http.Request) {
 				writeJSON(w, 200, map[string]string{"url": "http://127.0.0.1:8765", "status": "running"})
 				return
 			}
-			if existing.Version != "0.3.0" && existing.Version != "0.4.0" && existing.Version != "0.5.0" && existing.Version != "0.6.0" && existing.Version != "0.6.1" {
+			if existing.Version != "0.3.0" && existing.Version != "0.4.0" && existing.Version != "0.5.0" && existing.Version != "0.6.0" && existing.Version != "0.6.1" && existing.Version != "0.6.2" {
 				writeJSON(w, 409, map[string]string{"error": "Another local service is using the Clips address. Close it, then reload the studio."})
 				return
 			}
@@ -292,6 +292,27 @@ func (a *app) launchClips(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, 503, map[string]string{"error": "Python is required for VYRA Clips. Install Python 3.11+ and run SETUP_CLIPS.bat once."})
 			return
 		}
+	}
+	// An app upgrade preserves the private venv. Install newly required timezone
+	// data through the existing in-app setup flow instead of launching a worker
+	// whose automatic posting time would fail on Windows.
+	probeArgs := []string{"-c", "from zoneinfo import ZoneInfo; ZoneInfo('America/Los_Angeles'); import fastapi, openai, boto3"}
+	if strings.EqualFold(filepath.Base(exe), "py.exe") {
+		probeArgs = append([]string{"-3"}, probeArgs...)
+	}
+	probeContext, probeCancel := context.WithTimeout(r.Context(), 15*time.Second)
+	probe := exec.CommandContext(probeContext, exe, probeArgs...)
+	probe.Dir = workerDirectory()
+	hideWorker(probe)
+	probeErr := probe.Run()
+	probeCancel()
+	if probeErr != nil {
+		if err = openClipsSetup(); err != nil {
+			writeJSON(w, 409, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, 202, map[string]any{"preparing": true})
+		return
 	}
 	args := []string{"-m", "uvicorn", "server:app", "--host", "127.0.0.1", "--port", "8765", "--no-access-log"}
 	if strings.EqualFold(filepath.Base(exe), "py.exe") {

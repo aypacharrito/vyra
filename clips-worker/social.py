@@ -464,12 +464,12 @@ def tiktok_post(connectors: Connectors, video: Path, title: str, privacy: str):
     from clip_engine import probe
     if probe(video)['duration'] > maximum + 0.5:
         raise ValueError(f'The TikTok account permits only {maximum:g}-second videos. Choose a shorter clip.')
-    token,_=connectors.token('tiktok')
+    token,account=connectors.token('tiktok')
     size=video.stat().st_size
     chunk_size=10*1024*1024
     chunks=max(1,size//chunk_size)
     payload={'post_info':{'title':title[:150], 'privacy_level':privacy,
-                          'disable_comment':False,'disable_duet':False,'disable_stitch':False},
+                          'disable_comment':True,'disable_duet':True,'disable_stitch':True},
              'source_info':{'source':'FILE_UPLOAD','video_size':size,
                             'chunk_size':min(size,chunk_size),'total_chunk_count':chunks}}
     result=check(requests.post('https://open.tiktokapis.com/v2/post/publish/video/init/',
@@ -505,6 +505,10 @@ def instagram_version():
     return value
 
 
+class InstagramRequestError(ValueError):
+    pass
+
+
 def instagram_check(response):
     try: data = response.json()
     except ValueError: data = {}
@@ -515,7 +519,10 @@ def instagram_check(response):
                     10: 'Instagram publishing permission is missing. Check app access and reconnect.',
                     200: 'Instagram publishing permission is missing. Check app access and reconnect.',
                     4: 'Instagram rate limit reached. Wait before posting again.'}
-        raise ValueError(messages.get(code, 'Instagram could not complete this step. Check Connected accounts and your Meta app permissions.'))
+        subcode = error.get('error_subcode') if isinstance(error, dict) else None
+        detail = 'Instagram could not complete this step. Run Test posting setup in Instagram App settings.'
+        suffix = ''.join(' '+name+' '+str(value)+'.' for name, value in [('Code', code), ('Subcode', subcode)] if type(value) is int)
+        raise InstagramRequestError(messages.get(code, detail) + suffix)
     return data
 
 
@@ -537,6 +544,9 @@ def instagram_post(connectors: Connectors, video: Path, caption: str):
         if not container.isdigit(): raise ValueError('Instagram did not return a media container. Check the account before retrying.')
         storage.attach(connectors.vault, key, container)
         return {'container_id': container, 'account_id': uid, 'status': 'processing', 'created_at': time.time()}
+    except InstagramRequestError:
+        storage.release(connectors.vault, key)
+        raise
     except requests.RequestException:
         # Meta may have accepted the container. Keep staging until its expiry.
         raise ValueError('Instagram submission was interrupted. Check the account before retrying. Your local clip is preserved.') from None
@@ -549,8 +559,14 @@ def instagram_container(connectors, receipt):
     container = str(receipt.get('container_id') or '')
     if not container.isdigit(): raise ValueError('No valid Instagram container receipt was saved.')
     data = instagram_check(requests.get(f'https://graph.instagram.com/{instagram_version()}/{container}',
-        params={'fields': 'status_code'}, headers={'Authorization': 'Bearer ' + token}, timeout=TIMEOUT))
-    return data.get('status_code', '')
+        params={'fields': 'status_code,status'}, headers={'Authorization': 'Bearer ' + token}, timeout=TIMEOUT))
+    message = 'Instagram could not process this Reel. Run Test posting setup, then review the clip.'
+    detail = str(data.get('status') or '').lower()
+    if any(word in detail for word in ('download', 'fetch', 'url', 'uri')):
+        message = 'Instagram could not download the temporary video. Run Test posting setup to verify storage access.'
+    elif any(word in detail for word in ('codec', 'format', 'aspect', 'duration', 'frame')):
+        message = 'Instagram rejected the video format or duration. Re-render a vertical MP4 and try a fresh post after review.'
+    return {'state': data.get('status_code', ''), 'message': message}
 
 
 def instagram_publish(connectors, receipt):

@@ -24,6 +24,8 @@ from social import Connectors, Vault, VALID_PLATFORMS, facebook_post, instagram_
 from publishing_status import delivery_view, instagram_readiness, youtube_checks, destination_checks, receipt
 import video_retention
 import instagram_storage
+import post_assistant
+import clip_deletion
 
 BASE = Path(__file__).resolve().parent
 load_dotenv(BASE / '.env')
@@ -74,6 +76,8 @@ def database():
 with database() as conn:
     conn.execute('CREATE TABLE IF NOT EXISTS publishing_checks (post_id TEXT PRIMARY KEY, result_json TEXT NOT NULL)')
     video_retention.initialize(conn)
+    post_assistant.initialize(conn)
+    clip_deletion.initialize(conn)
     # A previous process may have ended after the provider accepted an upload.
     # Keep it for review instead of duplicating the submission after restart.
     conn.execute("UPDATE postings SET status='needs_review', error='Worker closed during submission. Check the platform before trying again.' WHERE status='sending'")
@@ -148,7 +152,8 @@ def advance_instagram():
             continue
         if row['status'] != 'submitted': continue
         try:
-            state = instagram_container(CONNECT, saved)
+            checked = instagram_container(CONNECT, saved)
+            state = checked.get('state') if isinstance(checked, dict) else checked
         except Exception as exc:
             # Polling is read-only and can safely resume after a temporary failure.
             store_checks({row['id']: {'verified': False, 'state': 'unavailable', 'checked_at': utc_now(),
@@ -158,7 +163,7 @@ def advance_instagram():
             finished.add(container)
             with database() as conn:
                 conn.execute("UPDATE postings SET status='needs_review', error=? WHERE id=? AND status='submitted'",
-                    ('Instagram could not process this Reel. Your local clip is preserved; review the video and connection settings.', row['id']))
+                    ((checked.get('message') if isinstance(checked, dict) else 'Instagram could not process this Reel. Your local clip is preserved; review the video and connection settings.'), row['id']))
             continue
         if state not in ('FINISHED', 'PUBLISHED'):
             store_checks({row['id']: {'verified': True, 'state': 'processing', 'checked_at': utc_now(),
@@ -196,6 +201,7 @@ def maintenance():
         rows = pending_verification()
         store_checks({**youtube_checks(CONNECT, rows), **destination_checks(CONNECT, rows)})
         video_retention.sweep(globals())
+        clip_deletion.finish(globals())
         LAST_MAINTENANCE = time.monotonic()
 
 
@@ -225,7 +231,7 @@ def clip_path(job_id, filename):
     if not path.is_file() or not (OUTPUT/job_id/'manifest.json').exists():
         raise HTTPException(404,'Clip not found')
     manifest=json.loads((OUTPUT/job_id/'manifest.json').read_text('utf-8'))
-    if not any(c.get('file')==filename for c in manifest.get('clips',[])):
+    if not any(c.get('file')==filename and not c.get('delete_requested_at') for c in manifest.get('clips',[])):
         raise HTTPException(404,'Clip not found')
     return path
 
@@ -239,7 +245,7 @@ def handle_post(row):
     if row['platform']=='facebook':
         return facebook_post(CONNECT,video,row['title'],row['caption'])
     if row['platform']=='tiktok':
-        return tiktok_post(CONNECT,video,row['title']+' '+row['caption'],row['visibility'])
+        return tiktok_post(CONNECT,video,row['caption'],row['visibility'])
     raise ValueError('Unknown destination')
 
 
@@ -310,7 +316,7 @@ def homepage():
 
 @app.get('/assets/{name}')
 def asset(name:str):
-    allowed={'connections.js':'text/javascript', 'intelligence.js':'text/javascript', 'icon.svg':'image/svg+xml', 'favicon.ico':'image/x-icon'}
+    allowed={'connections.js':'text/javascript', 'intelligence.js':'text/javascript', 'post-assistant.js':'text/javascript', 'icon.svg':'image/svg+xml', 'favicon.ico':'image/x-icon'}
     if name not in allowed: raise HTTPException(404, 'Asset not found')
     return FileResponse(BASE/'static'/name, media_type=allowed[name])
 
@@ -318,7 +324,7 @@ def asset(name:str):
 @app.get('/api/status')
 def status():
     refresh_desktop_connection()
-    return {'version':'0.6.2','ready':bool(os.getenv('OPENAI_API_KEY')),
+    return {'version':'0.6.3','ready':bool(os.getenv('OPENAI_API_KEY')),
             'platforms':publishing_accounts(), 'media':media_status(), 'render_engine':'FFmpeg','post_safety':'consent per destination'}
 
 
@@ -384,13 +390,29 @@ def library():
     for item in sorted(OUTPUT.glob('*/manifest.json'),key=lambda p:p.stat().st_mtime,reverse=True):
         try:
             data=json.loads(item.read_text('utf-8'))
-            clips = [c for c in data.get('clips', []) if NAME.fullmatch(str(c.get('file', '')))
+            clips = [c for c in data.get('clips', []) if not c.get('delete_requested_at') and NAME.fullmatch(str(c.get('file', '')))
                      and (item.parent / c['file']).is_file()]
             if clips: jobs.append({'id':item.parent.name,'clips':clips})
             if len(jobs) >= 40: break
         except (ValueError,OSError):
             pass
     return jobs
+
+
+@app.post('/api/post-assistant')
+async def prepare_post_assistant(req:Request):
+    body = await req.json()
+    if not isinstance(body, dict): raise HTTPException(400, 'Choose a clip and destination.')
+    try: return await run_in_threadpool(post_assistant.prepare, globals(), body)
+    except ValueError as exc: raise HTTPException(400, str(exc)[:240]) from None
+
+
+@app.delete('/api/clips/{job_id}/{filename}')
+async def delete_clip(job_id:str, filename:str, req:Request):
+    body = await req.json()
+    if not isinstance(body, dict) or body.get('confirm') is not True:
+        raise HTTPException(400, 'Confirm local deletion and cancellation of queued posts for this clip.')
+    return await run_in_threadpool(clip_deletion.delete, globals(), job_id, filename)
 
 
 @app.get('/api/jobs/{job_id}/files/{filename}')
@@ -437,6 +459,22 @@ async def save_instagram_storage(req:Request):
         return result
     except (ValueError, TypeError):
         raise HTTPException(400, 'Check all storage fields and wait for pending Instagram uploads before changing storage.') from None
+
+
+@app.post('/api/connections/instagram/test')
+def test_instagram_posting():
+    global LAST_PUBLISHING_CHECK
+    with PUBLISHING_LOCK:
+        health = instagram_readiness(CONNECT)
+        if health.get('ready'):
+            try: health['storage_test'] = instagram_storage.test(VAULT)
+            except ValueError as exc:
+                health.update(ready=False, message=str(exc)[:240])
+            except Exception:
+                health.update(ready=False, message='Temporary storage test failed. Check the R2 credentials and bucket.')
+        PUBLISHING_HEALTH['instagram'] = {'identity': CONNECT.info()['instagram'].get('account'), 'result': health}
+        LAST_PUBLISHING_CHECK = 0.0
+        return health
 
 
 @app.put('/api/connections/{provider}')
@@ -527,12 +565,12 @@ def make_post(body,scheduled):
         raise HTTPException(400,'Connect your social account first.')
     if provider=='tiktok' and scheduled:
         raise HTTPException(400,'TikTok requires a fresh, explicit posting confirmation and available privacy choices; use Publish now.')
-    if provider=='youtube' and visibility not in ('private','unlisted','public'):
-        raise HTTPException(400,'YouTube visibility must be private, unlisted, or public.')
+    if provider=='youtube' and visibility != 'public':
+        raise HTTPException(400,'New YouTube posts must be Public. Prepare a public post before confirming.')
     if provider in ('instagram','facebook') and visibility != 'reels':
         raise HTTPException(400, 'Choose Reels publishing for this destination.')
-    if provider=='tiktok' and visibility not in ('PUBLIC_TO_EVERYONE','MUTUAL_FOLLOW_FRIENDS','FOLLOWER_OF_CREATOR','SELF_ONLY'):
-        raise HTTPException(400,'Select a privacy option shown by TikTok.')
+    if provider=='tiktok' and visibility != 'PUBLIC_TO_EVERYONE':
+        raise HTTPException(400,'Choose Public in TikTok. This client will not silently post a private copy.')
     if scheduled:
         try:
             when=datetime.fromisoformat(str(body.get('scheduled_at','')).replace('Z','+00:00'))

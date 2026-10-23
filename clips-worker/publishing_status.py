@@ -56,6 +56,7 @@ def youtube_result(video, requested):
         result.update(state='processing', label='Uploaded · Processing',
                       message='YouTube accepted the upload. Processing has not been confirmed complete.')
     if privacy and requested != privacy:
+        result['visibility_mismatch'] = True
         result['visibility_note'] = 'Requested '+requested+'; YouTube reports '+privacy+'. Review visibility and restrictions in YouTube Studio.'
     if status.get('publishAt'):
         result['publish_at'] = status['publishAt']

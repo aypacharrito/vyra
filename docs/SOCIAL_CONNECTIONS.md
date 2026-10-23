@@ -67,3 +67,13 @@ Implementation references studied:
 - [Meta content publishing and upload restrictions](https://developers.facebook.com/documentation/instagram-platform/content-publishing)
 - [Meta resumable upload prerequisites](https://developers.facebook.com/documentation/instagram-platform/content-publishing/resumable-uploads)
 - [TikTok post-status confirmation](https://developers.tiktok.com/doc/content-posting-api-reference-get-video-status)
+
+## Diagnose Instagram posting
+
+If sign-in works but posting fails, choose **Test posting setup** on the Instagram card or in App settings. This verifies the account, saved publishing permission, a small upload into the configured staging bucket and a signed ranged GET from that object. It deletes the test object afterward and creates no social post. Upload/read/delete failures keep durable cleanup records. Use the displayed stage/code to distinguish an expired login, missing permission, storage failure and a media processing problem. Do not paste credentials into a support screenshot.
+
+## Public posts and timing
+
+New YouTube submissions are Public only. VYRA reports actual platform visibility; it cannot override account restrictions just by changing a form. Instagram and Facebook use their Reels publishers. TikTok requires a fresh per-post Public choice, and posting is blocked if Public is unavailable. VYRA does not secretly post privately.
+
+The automatic time is a recommendation from recent account results when sample size permits, otherwise a labeled starter experiment in the device timezone. It is not a guarantee or a measurement of current follower activity. You can override it before confirming. TikTok still requires current manual posting confirmation.

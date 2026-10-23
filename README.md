@@ -1,4 +1,4 @@
-# VYRA 1.4 — Open Beta
+# VYRA 1.5.4 — Open Beta
 
 VYRA is a Windows AI workspace with a Steam-inspired library, streaming OpenAI conversations, visible voice captions, project context, repeatable AI tasks and an integrated Clips Studio. VYRA owns its Windows window and embeds Microsoft WebView2 Runtime; it does not launch Edge in app mode. The runtime is included on current Windows versions and can also be installed from Microsoft.
 
@@ -46,6 +46,18 @@ Posted clips are automatically removed from local storage ten minutes after ever
 Use **Connected accounts → Set up connection** to privately import your Google Desktop OAuth JSON or save Meta app details. Connect through each platform’s sign-in screen. Facebook requires explicit Page selection. See [social setup](docs/SOCIAL_CONNECTIONS.md).
 
 Publishing claims are atomic and duplicate active posts are rejected. If a process closes during submission, the record needs review; check the destination before retrying. Scheduled posts require the worker to stay running. Account publishing has not been live-tested without the user's credentials.
+
+## Automatic post preparation
+
+Opening Publish now fills in an AI-selected title and concise description for that platform, using the selected clip transcript and metadata. It is an editorial recommendation, not a virality guarantee. Regenerate requests another version; successful suggestions are cached locally, and edits made while generation is running are preserved. Missing AI access keeps the existing text and reports the fallback explicitly.
+
+Choose automatically is the default timing mode for YouTube, Instagram and Facebook. VYRA compares recent account posting times and available age-adjusted engagement when enough comparable records exist. With insufficient results it chooses an explicitly labeled starter test window. These are estimates, not audience-activity reports. You can choose Post now or a manual time; VYRA must remain open to send scheduled posts. TikTok shows the suggestion but requires current manual privacy selection/confirmation when posting.
+
+New YouTube posts must be Public; an account/platform restriction can still change the actual result, which is shown in activity and blocks local auto-cleanup until resolved. TikTok offers only Public when that account/client permits it and requires you to select it; it never silently falls back to private. Previously reviewed queue records are preserved.
+
+Delete on a clip removes its local MP4/subtitles and cancels approved posts and unsent drafts. It also stops an Instagram container still awaiting publication. It does not remove existing social posts or external original footage. In-flight submissions block deletion until they finish; video playback locks retry automatically after playback closes.
+
+In Instagram App settings, Test posting setup checks the account, upload permission and an actual small temporary-file upload/signed URL read. It never publishes a Reel. Your R2 settings must be configured; see the social setup guide.
 
 ## Updates and publishing
 

@@ -22,8 +22,8 @@ def register_intelligence(app, env):
         data=env['CONNECT'].vault.get(platform) or {}
         return str(data.get({'youtube':'channel_id','instagram':'user_id','facebook':'page_id','tiktok':'open_id'}[platform]) or '')
     def validate_destination(platform,visibility,scheduled_at):
-        choices={'youtube':('private','unlisted','public'),'instagram':('reels',),'facebook':('reels',),
-            'tiktok':('PUBLIC_TO_EVERYONE','MUTUAL_FOLLOW_FRIENDS','FOLLOWER_OF_CREATOR','SELF_ONLY')}
+        choices={'youtube':('public',),'instagram':('reels',),'facebook':('reels',),
+            'tiktok':('PUBLIC_TO_EVERYONE',)}
         if visibility not in choices[platform]: raise ValueError('Choose a supported visibility for this destination.')
         if scheduled_at:
             if platform=='tiktok': raise ValueError('TikTok requires a current per-post review, without scheduling.')
@@ -56,7 +56,7 @@ def register_intelligence(app, env):
             raise ValueError('Provide a title up to 100 characters and a description within the platform limit.')
         target=str(body.get('target','post'))
         data={'id':uuid.uuid4().hex[:20],'target':target,'platform':platform,'title':title,'caption':caption,
-            'visibility':str(body.get('visibility') or ('public' if platform=='youtube' else 'reels')),
+            'visibility':str(body.get('visibility') or ('public' if platform=='youtube' else 'PUBLIC_TO_EVERYONE' if platform=='tiktok' else 'reels')),
             'scheduled_at':str(body.get('scheduled_at') or ''),'created_at':now(),'account':identity(platform),'account_id':account_id(platform)}
         if target=='post':
             validate_destination(platform,data['visibility'],data['scheduled_at'])

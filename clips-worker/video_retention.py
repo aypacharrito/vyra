@@ -14,7 +14,7 @@ def initialize(conn):
 
 
 def confirmed(result):
-    return result.get('verified') is True and result.get('state') in (
+    return result.get('verified') is True and not result.get('visibility_mismatch') and result.get('state') in (
         'public', 'private', 'unlisted', 'published')
 
 

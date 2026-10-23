@@ -21,6 +21,7 @@ jobs:
       - run: go vet ./...
       - run: node --check web/app.js
       - run: node --check clips-worker/static/connections.js
+      - run: node --check clips-worker/static/post-assistant.js
       - run: node --test tests/oauth-relay.test.mjs
   clips:
     runs-on: ubuntu-latest

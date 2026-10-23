@@ -29,16 +29,27 @@
     <p class="note">${config.configured?'App details are saved. You can connect your account now or replace the details below.':'Finish this one-time app setup, then use the platform’s official sign-in.'} Secrets are encrypted locally for this Windows account. Changing the app details requires reconnecting.</p>`;
    if(name==='instagram'){
     const storage=config.storage||{saved_fields:[]};
-    el('connectionFields').insertAdjacentHTML('beforeend',`<div class="setup-step"><h3>Temporary video storage</h3><p class="note">Instagram downloads each Reel from a temporary URL. Use a private Cloudflare R2 bucket and Object Read & Write S3 credentials. VYRA deletes its temporary files after processing; nothing needs to be made public.</p>${[['account_id','Cloudflare account ID'],['access_key_id','R2 access key ID'],['secret_access_key','R2 secret access key'],['bucket','R2 bucket name']].map(([key,label])=>`<label for="storage_${key}">${label}</label><input class="input" id="storage_${key}" type="${key==='access_key_id'||key==='secret_access_key'?'password':'text'}" autocomplete="off" placeholder="${storage.saved_fields.includes(key)?'Saved — leave blank to keep it':label}">`).join('')}<button type="button" class="btn subtle" id="saveVideoStorage" style="margin-top:16px">Save video storage</button><p class="status" id="storageResult">${storage.configured?'Storage details saved.':'Storage setup required before your first Reel.'}</p></div>`);
+    el('connectionFields').insertAdjacentHTML('beforeend',`<div class="setup-step"><h3>Temporary video storage</h3><p class="note">Instagram downloads each Reel from a temporary URL. Use a private Cloudflare R2 bucket and Object Read & Write S3 credentials. VYRA deletes its temporary files after processing; nothing needs to be made public.</p>${[['account_id','Cloudflare account ID'],['access_key_id','R2 access key ID'],['secret_access_key','R2 secret access key'],['bucket','R2 bucket name']].map(([key,label])=>`<label for="storage_${key}">${label}</label><input class="input" id="storage_${key}" type="${key==='access_key_id'||key==='secret_access_key'?'password':'text'}" autocomplete="off" placeholder="${storage.saved_fields.includes(key)?'Saved — leave blank to keep it':label}">`).join('')}<button type="button" class="btn subtle" id="saveVideoStorage" style="margin-top:16px">Save video storage</button><button type="button" class="btn subtle" id="testInstagramSetup" style="margin-top:16px">Test posting setup</button><p class="status" id="storageResult">${storage.configured?'Storage details saved.':'Storage setup required before your first Reel.'}</p></div>`);
     el('saveVideoStorage').onclick=async()=>{
      const button=el('saveVideoStorage');button.disabled=true;
      try{const value=Object.fromEntries(['account_id','access_key_id','secret_access_key','bucket'].map(key=>[key,el('storage_'+key).value]));await api('/api/connections/instagram/storage','PUT',value);['account_id','access_key_id','secret_access_key','bucket'].forEach(key=>{el('storage_'+key).value='';el('storage_'+key).placeholder='Saved — leave blank to keep it'});el('storageResult').textContent='Storage details saved. Use Check platform status to verify Instagram.';await window.loadStatus()}catch(error){el('storageResult').textContent=error.message}finally{button.disabled=false}
     };
    }
+   if(name==='instagram')el('testInstagramSetup').onclick=()=>testPosting(el('testInstagramSetup'));
    el('copyCallback').onclick=async()=>{try{await navigator.clipboard.writeText(config.callback||callback);el('connectionError').textContent='Callback address copied.'}catch{el('connectionError').textContent='Select the address above and copy it.'}};
    el('googleCredential')?.addEventListener('change',()=>{const file=el('googleCredential').files[0];el('credentialStatus').textContent=file?'Selected: '+file.name:'Choose the Google OAuth client JSON.'});
    el('connectionSave').textContent=config.configured?'Save app details':'Save & continue';
   }catch(error){el('connectionError').textContent=error.message}
+ }
+ async function testPosting(button){
+  button.disabled=true;
+  const feedback=el('storageResult');if(feedback)feedback.textContent='Checking Instagram sign-in, permission and temporary video access…';
+  try{
+   const result=await api('/api/connections/instagram/test','POST',{});
+   const message=result.ready?(result.storage_test?.message||'Instagram posting setup verified.'):result.message+' '+(result.setup_message||'');
+   if(feedback)feedback.textContent=message;
+   window.toast(message);await window.loadStatus();
+  }catch(error){if(feedback)feedback.textContent=error.message;window.toast(error.message)}finally{button.disabled=false}
  }
  async function connect(name){
   if(busy)return;busy=true;
@@ -59,6 +70,7 @@
   }catch(error){el('connectionError').textContent=error.message}finally{busy=false;button.disabled=false}
  });
  el('accountsList').addEventListener('click',async event=>{
+  const testButton=event.target.closest('[data-test-instagram]');if(testButton){await testPosting(testButton);return}
   const setupButton=event.target.closest('[data-setup]');if(setupButton){await setup(setupButton.dataset.setup);return}
   const connectButton=event.target.closest('[data-connect]');if(connectButton){await connect(connectButton.dataset.connect);return}
   const pageButton=event.target.closest('[data-save-page]');if(pageButton){
