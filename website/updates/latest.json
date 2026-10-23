@@ -1,6 +1,6 @@
 {
-  "version": "1.5.7",
-  "url": "https://vyra-five-lac.vercel.app/downloads/1.5.7/VYRA-Setup.exe",
-  "sha256": "1e3005667aacdf56b7a5b16e9f1c10ebf5287f11219bb0a88693e13385b35aaa",
+  "version": "1.5.8",
+  "url": "https://vyra-five-lac.vercel.app/downloads/1.5.8/VYRA-Setup.exe",
+  "sha256": "5103cdfb8a8617fc099c0dc6b02306e7caf4c0731d1d6b0dd5e3290ec83da685",
   "notes": "A focused Clip Studio redesign, enforced posting intervals, serialized uploads and automatic cleanup after confirmed delivery."
 }
