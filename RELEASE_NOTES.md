@@ -1,3 +1,10 @@
+# VYRA 1.5.9
+
+- Fixed Windows refusing to replace worker 0.6.5 during the upgrade to 0.6.6. The launcher and replacement script now share one supported legacy-version list, with a regression check for the previous release.
+- A verified previous worker is replaced only after the existing publishing check. Active uploads receive a specific wait message; other restart failures no longer incorrectly claim that publishing is active. The replacement waits for its local port to release before the new worker starts.
+- Removed the duplicate top repair/reload toolbar. Loading and recovery use the same editorial headline and studio view strip as the design concept, with one recovery message and inline retry/tools controls. Removed the extra WORKSPACE sidebar label to align the navigation with the concept.
+- Retains the 1.5.8 publishing conflict fix, exact automatic timestamps and 1.5.7 stylesheet routing fix. Worker protocol stays 0.6.6.
+
 # VYRA 1.5.8
 
 - Fixed the publishing dialog treating all HTTP 409 responses as occupied posting times. Already queued/submitted clips now show the actual duplicate warning instead of repeatedly refreshing the time and asking for confirmation.

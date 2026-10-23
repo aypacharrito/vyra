@@ -15,23 +15,14 @@ import (
 func stopLegacyWorker() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	script := `$ErrorActionPreference='Stop'
-$base='http://127.0.0.1:8765'
-$status=Invoke-RestMethod "$base/api/status" -TimeoutSec 3
-if($status.version -notin @('0.3.0','0.4.0','0.5.0','0.6.0','0.6.1','0.6.2','0.6.3','0.6.4') -or $status.render_engine -notin @('FFmpeg required','FFmpeg') -or $status.post_safety -ne 'consent per destination'){throw 'Unexpected local service'}
-$queue=Invoke-RestMethod "$base/api/queue" -TimeoutSec 3
-if($queue | Where-Object {$_.status -in @('sending','submitting','publishing')}){throw 'Publishing is still active'}
-$connection=Get-NetTCPConnection -LocalAddress '127.0.0.1' -LocalPort 8765 -State Listen
-if(@($connection).Count -ne 1){throw 'Unexpected listener'}
-$worker=Get-CimInstance Win32_Process -Filter "ProcessId=$($connection.OwningProcess)"
-$session=(Get-Process -Id $PID).SessionId
-if($worker.SessionId -ne $session -or $worker.CommandLine -notmatch '\s-m uvicorn server:app --host 127\.0\.0\.1 --port 8765 --no-access-log\s*$'){throw 'Unexpected worker process'}
-Stop-Process -Id $worker.ProcessId -ErrorAction Stop
-`
-	cmd := exec.CommandContext(ctx, "powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", script)
+	cmd := exec.CommandContext(ctx, "powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", legacyWorkerStopScript())
 	hideWorker(cmd)
 	if err := cmd.Run(); err != nil {
-		return errors.New("An older Clips worker is still active. Finish any publishing, then reload the studio.")
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && exitErr.ExitCode() == 42 {
+			return errors.New("A post is still uploading. Wait for it to finish, then try opening Clips again.")
+		}
+		return errors.New("The previous Clips session could not restart. Exit VYRA and reopen it. If this continues, close the older VYRA Clips/Python window, then try again.")
 	}
 	return nil
 }

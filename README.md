@@ -1,4 +1,4 @@
-# VYRA 1.5.8 — Open Beta
+# VYRA 1.5.9 — Open Beta
 
 VYRA is a Windows AI workspace with a Steam-inspired library, streaming OpenAI conversations, visible voice captions, project context, repeatable AI tasks and an integrated Clips Studio. VYRA owns its Windows window and embeds Microsoft WebView2 Runtime; it does not launch Edge in app mode. The runtime is included on current Windows versions and can also be installed from Microsoft.
 

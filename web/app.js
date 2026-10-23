@@ -74,12 +74,20 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshSta
 setInterval(()=>{if(!document.hidden)refreshStatus(true)},15000);
 let clipsContainer=null,clipsLoading=false;
 function mountClips(){
- if(!clipsContainer){clipsContainer=document.createElement('section');clipsContainer.className='main-content clips-embedded';clipsContainer.innerHTML=`<div class="studio-toolbar"><div><strong>VYRA Clips</strong><span id="clips-state" role="status">Opening your studio…</span></div><div>${btn('Repair video tools','clips-setup','ghost-btn')}${btn('Reload studio','launch-clips','ghost-btn')}</div></div><div id="studio-content" class="studio-content"><div class="studio-loading"><span class="msg-icon spin">✦</span><h2>Your studio is opening.</h2><p>Clips, captions, exports and your connected accounts live right here.</p></div></div>`;root.after(clipsContainer)}
+ if(!clipsContainer){clipsContainer=document.createElement('section');clipsContainer.className='main-content clips-embedded';clipsContainer.innerHTML=`<div id="studio-content" class="studio-content"><div class="studio-opening"><header class="studio-opening-heading"><div><h1>Your next standout moment.</h1><p>Import. Clip. Publish.</p></div><span class="studio-session-state">Opening studio</span></header><div class="studio-opening-tabs" aria-label="Studio views available after startup"><span class="selected">Studio</span><span>Library</span><span>Publishing</span><span>Accounts</span></div><section class="studio-loading"><h2>Your studio is opening.</h2><p id="clips-state" role="status" aria-live="polite">Preparing your clips and saved connections…</p><div id="studio-recovery" hidden>${btn('Try again','launch-clips','primary-btn')}${btn('Repair video tools','clips-setup','secondary-btn')}</div></section></div></div>`;root.after(clipsContainer)}
  clipsContainer.hidden=state.view!=='clips';return clipsContainer;
 }
 async function checkClips(){mountClips();if(!clipsContainer.querySelector('iframe')&&!clipsLoading)await runClips()}
+function studioLoading(message,failed=false){
+ mountClips();const loading=clipsContainer.querySelector('.studio-loading');
+ if(!loading){if(failed)toast(message);return}
+ loading.querySelector('h2').textContent=failed?'Let’s reopen your studio.':'Your studio is opening.';
+ loading.querySelector('#clips-state').textContent=message;
+ loading.querySelector('#studio-recovery').hidden=!failed;
+ clipsContainer.querySelector('.studio-session-state').textContent=failed?'Needs attention':'Opening studio';
+}
 async function watchVideoSetup(){
- try{const data=await request('/api/clips/status');mountClips();clipsContainer.querySelector('#clips-state').textContent=data.setup?.detail||'Preparing video tools…';if(data.setup?.state==='running')setTimeout(watchVideoSetup,2000);else if(data.setup?.state==='ready')await runClips();else if(data.setup?.state==='failed')toast(data.setup.detail)}catch(e){toast(e.message)}
+ try{const data=await request('/api/clips/status');studioLoading(data.setup?.detail||'Preparing video tools…',data.setup?.state==='failed');if(data.setup?.state==='running')setTimeout(watchVideoSetup,2000);else if(data.setup?.state==='ready')await runClips();else if(data.setup?.state==='failed')toast(data.setup.detail)}catch(e){studioLoading(e.message,true)}
 }
 async function openWebLink(url){
  const parsed=new URL(url);if(!['https:','http:'].includes(parsed.protocol))return;
@@ -164,9 +172,9 @@ async function submitSettings(e){
  finally{button.disabled=false}
 }
 async function runClips(){
- if(clipsLoading)return;mountClips();clipsLoading=true;const status=clipsContainer.querySelector('#clips-state');status.textContent='Starting your studio…';
- try{const data=await request('/api/clips/launch','POST',{});if(data.preparing){watchVideoSetup();return}const url=new URL(data.url);if(url.origin!=='http://127.0.0.1:8765')throw Error('Unexpected studio address.');const content=clipsContainer.querySelector('#studio-content');let frame=content.querySelector('iframe');if(!frame){frame=document.createElement('iframe');frame.title='VYRA Clips Studio';frame.allow='clipboard-write';frame.addEventListener('load',()=>{if(pendingDraftReview)frame.contentWindow.postMessage({type:'vyra.reviewDraft',id:pendingDraftReview},'http://127.0.0.1:8765')});content.replaceChildren(frame)}frame.src=url.origin+'/?embedded=1'+(pendingDraftReview?'&draft='+encodeURIComponent(pendingDraftReview):'');status.textContent='Local processing · saved connections';}
- catch(e){status.textContent=e.message;if(!clipsContainer.querySelector('iframe'))clipsContainer.querySelector('#studio-content').innerHTML=`<div class="studio-loading"><h2>Let’s finish opening Clips.</h2><p>${html(e.message)}</p>${btn('Try again','launch-clips','primary-btn')}${btn('Set up video tools','clips-setup','secondary-btn')}</div>`}
+ if(clipsLoading)return;mountClips();clipsLoading=true;studioLoading('Starting your studio…');
+ try{const data=await request('/api/clips/launch','POST',{});if(data.preparing){watchVideoSetup();return}const url=new URL(data.url);if(url.origin!=='http://127.0.0.1:8765')throw Error('Unexpected studio address.');const content=clipsContainer.querySelector('#studio-content');let frame=content.querySelector('iframe');if(!frame){frame=document.createElement('iframe');frame.title='VYRA Clips Studio';frame.allow='clipboard-write';frame.addEventListener('load',()=>{if(pendingDraftReview)frame.contentWindow.postMessage({type:'vyra.reviewDraft',id:pendingDraftReview},'http://127.0.0.1:8765')});content.replaceChildren(frame)}frame.src=url.origin+'/?embedded=1'+(pendingDraftReview?'&draft='+encodeURIComponent(pendingDraftReview):'');}
+ catch(e){studioLoading(e.message,true)}
  finally{clipsLoading=false}
 }
 async function quit(){try{await request('/api/quit','POST',{});toast('VYRA is closing. You can close this window.')}catch(e){toast(e.message)}}

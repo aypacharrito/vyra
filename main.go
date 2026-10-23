@@ -22,7 +22,7 @@ import (
 //go:embed web/*
 var content embed.FS
 
-var version = "1.5.8"
+var version = "1.5.9"
 
 const clipsWorkerVersion = "0.6.6"
 
@@ -267,7 +267,7 @@ func (a *app) launchClips(w http.ResponseWriter, r *http.Request) {
 				writeJSON(w, 200, map[string]string{"url": "http://127.0.0.1:8765", "status": "running"})
 				return
 			}
-			if existing.Version != "0.3.0" && existing.Version != "0.4.0" && existing.Version != "0.5.0" && existing.Version != "0.6.0" && existing.Version != "0.6.1" && existing.Version != "0.6.2" && existing.Version != "0.6.3" && existing.Version != "0.6.4" && existing.Version != "0.6.5" {
+			if !isLegacyClipsVersion(existing.Version) {
 				writeJSON(w, 409, map[string]string{"error": "Another local service is using the Clips address. Close it, then reload the studio."})
 				return
 			}
