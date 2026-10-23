@@ -97,3 +97,8 @@ DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
 THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+Video source import dependencies (installed separately by Clips setup):
+- yt-dlp / yt-dlp-ejs: https://github.com/yt-dlp/yt-dlp and https://github.com/yt-dlp/ejs (Unlicense, subject to component notices).
+- Deno runtime Python distribution: https://github.com/denoland/deno (MIT, with upstream dependency notices).
+Source services and content retain their own terms and licenses.

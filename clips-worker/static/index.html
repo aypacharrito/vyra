@@ -54,5 +54,6 @@ let params=new URLSearchParams(location.search);if(params.has('connected'))toast
 $('refreshQueue').textContent='Check platform status';Promise.all([loadStatus(),loadLibrary(),loadQueue()]).then(()=>refreshPublishing());setInterval(loadQueue,25000);
 </script>
 <script src="/assets/post-assistant.js"></script>
+<script src="/assets/discovery.js"></script>
 <script src="/assets/intelligence.js"></script>
 </body></html>

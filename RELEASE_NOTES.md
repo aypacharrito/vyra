@@ -1,3 +1,13 @@
+# VYRA 1.5.5
+
+- Added Discover with a saved provider/topic pattern, optional six-hour automatic refresh, deduplication, metadata-only scouting, and fixed daily/provider budgets.
+- Added public video-link import directly into the existing transcription, captioning and clipping workflow: YouTube, Twitch clips/VODs, Internet Archive movies. Requires authorized footage; no private/DRM bypass.
+- Added encrypted Twitch discovery credentials and Intelligence tools for reading/scouting picks. YouTube reuses its existing read connection.
+- Replaced unbounded per-transcript-batch highlight requests with a fixed 24-window prefilter and one weighted rubric call. Selection includes timeline diversity, grounded timestamps, minimum payoff/clarity, overlap prevention, and honest fallback labels.
+- Includes all 1.5.4 AI post copy/time, public posting, clip deletion, storage cleanup and Instagram publishing repairs. Worker protocol 0.6.4 refreshes old workers; setup installs the downloader and bundled JavaScript runtime.
+
+Validation: 121 worker tests passed, one Windows-only test skipped on Linux; four OAuth callback tests passed. UI flow covers discovery settings/picks/import and the existing publishing flow. Windows-targeted vet, application build and test-binary compilation passed. Live provider downloads, account discovery, and social posting still need verification with connected accounts in the installed app.
+
 # VYRA 1.5.4
 
 - Bump the worker protocol to 0.6.3 so old running 0.6.2 workers are detected and replaced safely instead of silently reused.

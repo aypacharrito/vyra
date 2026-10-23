@@ -22,9 +22,9 @@ import (
 //go:embed web/*
 var content embed.FS
 
-var version = "1.5.2"
+var version = "1.5.5"
 
-const clipsWorkerVersion = "0.6.3"
+const clipsWorkerVersion = "0.6.4"
 
 type app struct {
 	mu        sync.RWMutex
@@ -264,7 +264,7 @@ func (a *app) launchClips(w http.ResponseWriter, r *http.Request) {
 				writeJSON(w, 200, map[string]string{"url": "http://127.0.0.1:8765", "status": "running"})
 				return
 			}
-			if existing.Version != "0.3.0" && existing.Version != "0.4.0" && existing.Version != "0.5.0" && existing.Version != "0.6.0" && existing.Version != "0.6.1" && existing.Version != "0.6.2" {
+			if existing.Version != "0.3.0" && existing.Version != "0.4.0" && existing.Version != "0.5.0" && existing.Version != "0.6.0" && existing.Version != "0.6.1" && existing.Version != "0.6.2" && existing.Version != "0.6.3" {
 				writeJSON(w, 409, map[string]string{"error": "Another local service is using the Clips address. Close it, then reload the studio."})
 				return
 			}
@@ -296,7 +296,7 @@ func (a *app) launchClips(w http.ResponseWriter, r *http.Request) {
 	// An app upgrade preserves the private venv. Install newly required timezone
 	// data through the existing in-app setup flow instead of launching a worker
 	// whose automatic posting time would fail on Windows.
-	probeArgs := []string{"-c", "from zoneinfo import ZoneInfo; ZoneInfo('America/Los_Angeles'); import fastapi, openai, boto3"}
+	probeArgs := []string{"-c", "from zoneinfo import ZoneInfo; ZoneInfo('America/Los_Angeles'); import fastapi, openai, boto3, yt_dlp, deno; import yt_dlp_ejs; deno.find_deno_bin()"}
 	if strings.EqualFold(filepath.Base(exe), "py.exe") {
 		probeArgs = append([]string{"-3"}, probeArgs...)
 	}

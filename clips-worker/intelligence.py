@@ -103,6 +103,12 @@ def register_intelligence(app, env):
                     temp=path.with_suffix('.tmp')
                     temp.write_text(json.dumps(manifest,ensure_ascii=False,indent=2),'utf-8'); temp.replace(path)
                 return {'saved':True,'job_id':job,'filename':filename,'clip':selected,'note':'Local export text saved. Published posts and scheduled copies were not edited.'}
+            if action=='discover_sources':
+                import source_discovery
+                return await run_in_threadpool(source_discovery.scan, env)
+            if action=='source_picks':
+                import source_discovery
+                return source_discovery.latest(env)
             if action=='prepare_post': return save_draft(body)
             if action=='update_draft':
                 with env['database']() as conn:

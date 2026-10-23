@@ -26,6 +26,7 @@ import video_retention
 import instagram_storage
 import post_assistant
 import clip_deletion
+import source_discovery
 
 BASE = Path(__file__).resolve().parent
 load_dotenv(BASE / '.env')
@@ -78,6 +79,7 @@ with database() as conn:
     video_retention.initialize(conn)
     post_assistant.initialize(conn)
     clip_deletion.initialize(conn)
+    source_discovery.initialize(conn)
     # A previous process may have ended after the provider accepted an upload.
     # Keep it for review instead of duplicating the submission after restart.
     conn.execute("UPDATE postings SET status='needs_review', error='Worker closed during submission. Check the platform before trying again.' WHERE status='sending'")
@@ -316,7 +318,7 @@ def homepage():
 
 @app.get('/assets/{name}')
 def asset(name:str):
-    allowed={'connections.js':'text/javascript', 'intelligence.js':'text/javascript', 'post-assistant.js':'text/javascript', 'icon.svg':'image/svg+xml', 'favicon.ico':'image/x-icon'}
+    allowed={'connections.js':'text/javascript', 'intelligence.js':'text/javascript', 'post-assistant.js':'text/javascript', 'discovery.js':'text/javascript', 'icon.svg':'image/svg+xml', 'favicon.ico':'image/x-icon'}
     if name not in allowed: raise HTTPException(404, 'Asset not found')
     return FileResponse(BASE/'static'/name, media_type=allowed[name])
 
@@ -324,8 +326,72 @@ def asset(name:str):
 @app.get('/api/status')
 def status():
     refresh_desktop_connection()
-    return {'version':'0.6.3','ready':bool(os.getenv('OPENAI_API_KEY')),
+    return {'version':'0.6.4','ready':bool(os.getenv('OPENAI_API_KEY')),
             'platforms':publishing_accounts(), 'media':media_status(), 'render_engine':'FFmpeg','post_safety':'consent per destination'}
+
+
+@app.get('/api/discovery')
+def discovery_status():
+    return source_discovery.latest(globals())
+
+
+@app.post('/api/discovery/settings')
+async def discovery_settings(req: Request):
+    try: return source_discovery.save_settings(globals(), await req.json())
+    except ValueError as exc: raise HTTPException(400, str(exc)) from None
+
+
+@app.post('/api/discovery/scan')
+async def discovery_scan():
+    try: return await run_in_threadpool(source_discovery.scan, globals())
+    except ValueError as exc: raise HTTPException(400, str(exc)) from None
+    except Exception: raise HTTPException(502, 'Discovery service unavailable. Check the source connection and try later.') from None
+
+
+def do_source_job(job_id, url, count, minimum, maximum):
+    folder=WORK/(job_id+'-import')
+    try:
+        progress(job_id,'Downloading public source (up to two hours / 2 GB)',2)
+        source=source_discovery.download(url,folder)
+        do_job(job_id,source,count,minimum,maximum)
+        if JOBS[job_id]['status']=='done':
+            manifest=OUTPUT/job_id/'manifest.json'
+            data=json.loads(manifest.read_text('utf-8'))
+            data['source']={'url':url,'imported_at':utc_now(),'pattern_version':1}
+            manifest.write_text(json.dumps(data,ensure_ascii=False,indent=2),'utf-8')
+    except Exception as exc:
+        with LOCK: JOBS[job_id].update(status='error',message=str(exc)[:500],progress=0)
+    finally:
+        import shutil
+        shutil.rmtree(folder,ignore_errors=True)
+        if JOBS[job_id]['status']=='error':
+            with database() as conn: conn.execute('DELETE FROM source_imports WHERE url=? AND job_id=?',(url,job_id))
+
+
+@app.post('/api/sources/import')
+async def import_source(req: Request):
+    body=await req.json()
+    if body.get('authorized') is not True: raise HTTPException(400,'Confirm you own or have permission to reuse this source.')
+    try:
+        url=source_discovery.canonical_url(body.get('url'))
+        count=max(1,min(int(body.get('count',5)),12))
+        minimum=max(12,min(int(body.get('min_seconds',20)),120))
+        maximum=max(minimum,min(int(body.get('max_seconds',60)),180))
+    except (ValueError,TypeError) as exc: raise HTTPException(400,str(exc)) from None
+    refresh_desktop_connection()
+    if not media_status()['ready']: raise HTTPException(503,media_status()['message'])
+    if not os.getenv('OPENAI_API_KEY'): raise HTTPException(503,'Connect OpenAI in Settings & connections first.')
+    job_id=uuid.uuid4().hex[:18]
+    with LOCK:
+        if any(j.get('status')=='processing' for j in JOBS.values()): raise HTTPException(429,'Local video worker already busy.')
+        with database() as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            existing=conn.execute('SELECT job_id FROM source_imports WHERE url=?',(url,)).fetchone()
+            if existing: raise HTTPException(409,'This source has already been imported. Check your clip library.')
+            conn.execute('INSERT INTO source_imports VALUES (?,?,?)',(url,job_id,time.time()))
+        JOBS[job_id]={'id':job_id,'status':'processing','message':'Starting source import','progress':0}
+    threading.Thread(target=do_source_job,args=(job_id,url,count,minimum,maximum),daemon=True).start()
+    return {'job_id':job_id}
 
 
 @app.post('/api/jobs')
@@ -643,3 +709,12 @@ def cancel(item_id:str):
 
 from intelligence import register_intelligence
 register_intelligence(app, globals())
+
+
+def discovery_loop():
+    while True:
+        source_discovery.auto_scan(globals())
+        time.sleep(60)
+
+if os.getenv('VYRA_DISABLE_SCHEDULER') != '1':
+    threading.Thread(target=discovery_loop,daemon=True).start()

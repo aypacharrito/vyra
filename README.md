@@ -1,4 +1,4 @@
-# VYRA 1.5.4 — Open Beta
+# VYRA 1.5.5 — Open Beta
 
 VYRA is a Windows AI workspace with a Steam-inspired library, streaming OpenAI conversations, visible voice captions, project context, repeatable AI tasks and an integrated Clips Studio. VYRA owns its Windows window and embeds Microsoft WebView2 Runtime; it does not launch Edge in app mode. The runtime is included on current Windows versions and can also be installed from Microsoft.
 
@@ -76,3 +76,14 @@ Run `go test ./...` and `go vet ./...`. Check interface syntax with `node --chec
 The test-only Go browser fixture (`VYRA_BROWSER_TEST=1`, `TestBrowserFixture`) provides fake OpenAI responses on port 48821. It never ships in release executables. For isolated manual app testing, `VYRA_DATA_DIR`, `VYRA_PORT` and `VYRA_HEADLESS=1` keep data and browser behavior separate from the normal installation.
 
 See [release notes](RELEASE_NOTES.md) and the [automation audit](docs/AUTOMATION_AUDIT.md). Hosted accounts, payment entitlements and a paid multi-user backend remain future work; the beta remains open as requested.
+
+
+## Source discovery and video links
+
+In Clips, use **Find your next clip** to save a provider/topic pattern. YouTube uses the connected account's read access; Twitch uses separate encrypted developer credentials. Movies searches Internet Archive feature films with public-domain/Creative Commons license metadata. Always check the source and license conditions.
+
+Each scan considers at most 20 sources and keeps five ranked picks, with a six-hour cache and eight scans per UTC day. Enable automatic discovery to refresh while Vyra is open. Scouting uses measured metadata, with no AI calls. Use source → review rights → Import & make clips, or paste a single supported video link. Imports support public YouTube videos, Twitch clips/VODs, and Internet Archive movie items up to two hours / 2 GB, without sign-in/cookies, access-control or DRM bypass. Downloads can be blocked by the source platform; authorized local uploads remain available.
+
+The highlight pattern preselects at most 24 transcript windows across the source, then makes one AI scoring call: hook 25%, payoff 25%, emotion 20%, standalone clarity 20%, editability 10%. Only scores of at least 65 with adequate payoff/clarity are selected. If scoring fails or no moment qualifies, clips are honestly labeled transcript excerpts, without invented scores. This is speech-based editorial selection; it does not analyze video frames or guarantee virality. Transcribing imported audio still uses your OpenAI credit.
+
+Intelligence can read picks and run the saved bounded discovery pattern. It cannot import external footage or publish directly through these tools. Automatic discovery runs only while the app is open. See [Source discovery](docs/SOURCE_DISCOVERY.md).

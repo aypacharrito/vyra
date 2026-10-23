@@ -30,6 +30,8 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Desktop tests failed' }
         node --check web/app.js
         if ($LASTEXITCODE -ne 0) { throw 'Interface validation failed' }
+        node --check clips-worker/static/discovery.js
+        if ($LASTEXITCODE -ne 0) { throw 'Discovery validation failed' }
         node --check clips-worker/static/post-assistant.js
         if ($LASTEXITCODE -ne 0) { throw 'Post assistant validation failed' }
         node --check clips-worker/static/intelligence.js
