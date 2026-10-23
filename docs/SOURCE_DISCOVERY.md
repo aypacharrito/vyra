@@ -1,6 +1,6 @@
 # Discovery pattern v1
 
-Save a provider and topic in Clips → Find your next clip. For Twitch the topic is a game name, not a free-form video search. Movies uses a licensed feature-film collection. YouTube discovery uses the existing YouTube OAuth connection and requires the YouTube Data API to be enabled for that app. Twitch scouting requires a developer Client ID/secret; it does not add Twitch as a posting destination.
+Save a provider and topic in Clips → Find a source for me. For Twitch the topic is a game name, not a free-form video search. Movies uses a licensed feature-film collection. YouTube discovery uses the existing YouTube OAuth connection and requires the YouTube Data API to be enabled for that app. Twitch scouting requires a developer Client ID/secret; it does not add Twitch as a posting destination.
 
 ## Repeatable source ranking
 

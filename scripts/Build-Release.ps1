@@ -30,6 +30,8 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Desktop tests failed' }
         node --check web/app.js
         if ($LASTEXITCODE -ne 0) { throw 'Interface validation failed' }
+        node --check clips-worker/static/studio.js
+        if ($LASTEXITCODE -ne 0) { throw 'Studio validation failed' }
         node --check clips-worker/static/discovery.js
         if ($LASTEXITCODE -ne 0) { throw 'Discovery validation failed' }
         node --check clips-worker/static/post-assistant.js
@@ -83,7 +85,7 @@ try {
         version = $vyraVersion
         url = "https://vyra-five-lac.vercel.app/downloads/$vyraVersion/VYRA-Setup.exe"
         sha256 = $vyraChecksum
-        notes = 'Automatic AI post copy, suggested posting times, Public-only new posts, clip deletion and Instagram posting diagnostics.'
+        notes = 'A focused Clip Studio redesign, enforced posting intervals, serialized uploads and automatic cleanup after confirmed delivery.'
     }
     $vyraJSON = $vyraManifest | ConvertTo-Json
     [IO.File]::WriteAllText((Join-Path $vyraOutput 'latest.json'), $vyraJSON, [Text.UTF8Encoding]::new($false))

@@ -30,7 +30,7 @@ posting. Open **Instagram App settings → Temporary video storage** and save th
 
 VYRA retains the temporary file during media processing. The background worker polls the existing container once per minute and claims publication once after it finishes; restarting never creates a second upload. Interrupted publication requires review. Temporary files are deleted after Meta consumes them or after their 24-hour container window expires (with a one-hour buffer). Failed deletions remain recorded and retry while VYRA is running. Add an R2 lifecycle rule expiring the **vyra-publishing/** prefix after two days as a fallback when the PC stays off. The app does not edit bucket lifecycle rules automatically.
 
-Local exports are removed ten minutes after all queued destinations confirm publication. Queued/sending/uncertain posts and unsent drafts retain the file. Original user videos outside the app, posts on social platforms, and publishing history are not deleted.
+Local exports are removed immediately after all queued destinations confirm publication. Queued/sending/uncertain posts and unsent drafts retain the file. Original user videos outside the app, posts on social platforms, and publishing history are not deleted.
 
 Instagram direct resumable upload is restricted to the Facebook Login for Business path; this app uses Instagram Login, so it deliberately keeps the temporary-URL method. A saved connection is not proof that storage credentials, app roles, or publishing permissions are valid. The worker reports those stages separately.
 

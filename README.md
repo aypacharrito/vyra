@@ -1,4 +1,4 @@
-# VYRA 1.5.5 — Open Beta
+# VYRA 1.5.6 — Open Beta
 
 VYRA is a Windows AI workspace with a Steam-inspired library, streaming OpenAI conversations, visible voice captions, project context, repeatable AI tasks and an integrated Clips Studio. VYRA owns its Windows window and embeds Microsoft WebView2 Runtime; it does not launch Edge in app mode. The runtime is included on current Windows versions and can also be installed from Microsoft.
 
@@ -41,7 +41,7 @@ Open **VYRA Clips** in the sidebar: upload, captions, exports, accounts and publ
 
 Clips transcribes spoken audio, selects candidate moments and renders vertical videos locally with word-highlighted captions. Timing comes from the actual transcript timestamps. YouTube, Instagram, Facebook and TikTok integrations require your own authorized accounts, developer credentials and applicable platform approvals. Instagram uses temporary private staging storage, configurable in its App settings. TikTok retains fresh confirmation at posting time.
 
-Posted clips are automatically removed from local storage ten minutes after every queued destination confirms publication. Failed/uncertain uploads, pending destinations and unsent drafts retain their files. Download a copy or queue additional destinations during that window. Publishing history and social posts remain. Cleanup runs while VYRA is open and resumes after restart.
+Posted clips are automatically removed from local storage immediately after every queued destination confirms publication. Failed/uncertain uploads, pending destinations and unsent drafts retain their files. Download a copy or queue additional destinations during that window. Publishing history and social posts remain. Cleanup runs while VYRA is open and resumes after restart.
 
 Use **Connected accounts → Set up connection** to privately import your Google Desktop OAuth JSON or save Meta app details. Connect through each platform’s sign-in screen. Facebook requires explicit Page selection. See [social setup](docs/SOCIAL_CONNECTIONS.md).
 
@@ -80,10 +80,21 @@ See [release notes](RELEASE_NOTES.md) and the [automation audit](docs/AUTOMATION
 
 ## Source discovery and video links
 
-In Clips, use **Find your next clip** to save a provider/topic pattern. YouTube uses the connected account's read access; Twitch uses separate encrypted developer credentials. Movies searches Internet Archive feature films with public-domain/Creative Commons license metadata. Always check the source and license conditions.
+In Clips, use **Find a source for me** to save a provider/topic pattern. YouTube uses the connected account's read access; Twitch uses separate encrypted developer credentials. Movies searches Internet Archive feature films with public-domain/Creative Commons license metadata. Always check the source and license conditions.
 
 Each scan considers at most 20 sources and keeps five ranked picks, with a six-hour cache and eight scans per UTC day. Enable automatic discovery to refresh while Vyra is open. Scouting uses measured metadata, with no AI calls. Use source → review rights → Import & make clips, or paste a single supported video link. Imports support public YouTube videos, Twitch clips/VODs, and Internet Archive movie items up to two hours / 2 GB, without sign-in/cookies, access-control or DRM bypass. Downloads can be blocked by the source platform; authorized local uploads remain available.
 
 The highlight pattern preselects at most 24 transcript windows across the source, then makes one AI scoring call: hook 25%, payoff 25%, emotion 20%, standalone clarity 20%, editability 10%. Only scores of at least 65 with adequate payoff/clarity are selected. If scoring fails or no moment qualifies, clips are honestly labeled transcript excerpts, without invented scores. This is speech-based editorial selection; it does not analyze video frames or guarantee virality. Transcribing imported audio still uses your OpenAI credit.
 
 Intelligence can read picks and run the saved bounded discovery pattern. It cannot import external footage or publish directly through these tools. Automatic discovery runs only while the app is open. See [Source discovery](docs/SOURCE_DISCOVERY.md).
+
+
+## Clip Studio 1.5.6
+
+Vyra opens directly in Clips. The sidebar contains only Clips, Projects and AI Tasks, with Settings below. Discover, Intelligence, new-conversation controls and the conversation list are removed from the interface. Existing saved workspace data is retained. Projects hold creative notes; AI Tasks have clip-focused examples and results stay in their activity view.
+
+The studio has four views: Studio, Library, Publishing and Accounts. Link import is next to local uploads, with optional source scouting inside **Find a source for me**. A charcoal/ivory visual system replaces decorative gradients and stars; the original Vyra mark stays.
+
+Scheduling now enforces a 90-minute interval per platform inside the queue transaction, including manual reservations and recent actual upload attempts. Competing requests cannot reserve the same window. When Vyra reopens with overdue posts, it spaces subsequent deliveries from their actual attempt times, instead of rushing all old reservations out together. One provider upload is active at a time across platforms. Other platforms may use the same time window, but file transfers are serialized. A conflicting manual/now request shows the next available time; an automatic-time conflict refreshes the suggestion for fresh review without replacing edited copy. Schedules run only while Vyra is open; failed or uncertain submissions do not retry automatically.
+
+A queued clip immediately leaves the review Library. Its file is retained for pending deliveries/drafts, then deleted on confirmation from every queued destination, with no ten-minute grace period. A failed/uncertain destination restores the clip to review. Cancelling a queued post frees its reservation and returns its clip. Windows file locks are retried during maintenance. Social posts, original external footage and submission history are preserved.

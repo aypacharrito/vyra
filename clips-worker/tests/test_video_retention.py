@@ -21,19 +21,19 @@ def verify(worker, post):
     worker.store_checks({post['id']: {'verified': True, 'state': 'public', 'checked_at': worker.utc_now()}})
 
 
-def sweep(worker, seconds=601):
+def sweep(worker, seconds=0):
     return video_retention.sweep(vars(worker), time.time() + seconds)
 
 
-def test_only_confirmed_exports_removed_after_grace_with_history_preserved(worker, monkeypatch, tmp_path):
+def test_confirmed_exports_removed_immediately_with_history_preserved(worker, monkeypatch, tmp_path):
     body, post = setup_post(worker, monkeypatch)
     video = worker.OUTPUT / body['job_id'] / body['filename']
     original = tmp_path / 'my-original.mp4'; original.write_bytes(b'original')
     other = video.with_name('clip_02.mp4'); other.write_bytes(b'unposted')
     assert not sweep(worker) and video.exists()  # Accepted is insufficient.
     verify(worker, post)
-    assert not sweep(worker, 599) and video.exists()
-    assert sweep(worker) > 0
+    # store_checks triggers cleanup immediately, without the old ten-minute timer.
+    assert not video.exists()
     assert not video.exists() and not video.with_suffix('.ass').exists()
     assert original.exists() and other.exists() and (video.parent / 'manifest.json').exists()
     assert not sweep(worker)  # Idempotent, including after reopening the DB.
@@ -54,16 +54,16 @@ def test_other_destination_still_needs_clip(worker, monkeypatch, state):
     assert worker.clip_path(body['job_id'], body['filename']).exists()
     if state == 'submitted':
         verify(worker, second)
-        assert sweep(worker) > 0
+        assert not (worker.OUTPUT / body['job_id'] / body['filename']).exists()
 
 
 def test_cancelled_destination_does_not_block_but_draft_does(worker, monkeypatch):
     body, first = setup_post(worker, monkeypatch)
     second = worker.make_post({**body, 'platform': 'facebook', 'visibility': 'reels', 'confirm': True}, False)
     worker.cancel(second['id'])
-    verify(worker, first)
     with worker.database() as conn:
         conn.execute('INSERT INTO drafts VALUES (?,?,1,?)', ('draft', json.dumps({**body, 'target': 'post'}), 'draft'))
+    verify(worker, first)
     assert not sweep(worker)
     with worker.database() as conn:
         conn.execute("UPDATE drafts SET status='discarded'")
@@ -72,6 +72,8 @@ def test_cancelled_destination_does_not_block_but_draft_does(worker, monkeypatch
 
 def test_confirmation_clock_does_not_reset_and_failed_check_keeps_file(worker, monkeypatch):
     body, post = setup_post(worker, monkeypatch)
+    with worker.database() as conn:
+        conn.execute('INSERT INTO drafts VALUES (?,?,1,?)', ('keep', json.dumps({**body,'target':'post'}), 'draft'))
     verify(worker, post)
     with worker.database() as conn:
         first = json.loads(conn.execute('SELECT result_json FROM publishing_checks').fetchone()[0])
@@ -83,7 +85,7 @@ def test_confirmation_clock_does_not_reset_and_failed_check_keeps_file(worker, m
 
 
 def test_windows_busy_file_retries_without_losing_receipts(worker, monkeypatch):
-    _, post = setup_post(worker, monkeypatch); verify(worker, post)
+    _, post = setup_post(worker, monkeypatch)
     from pathlib import Path
     original = Path.unlink
     def busy(path, *args, **kwargs):
@@ -91,5 +93,6 @@ def test_windows_busy_file_retries_without_losing_receipts(worker, monkeypatch):
         return original(path, *args, **kwargs)
     with monkeypatch.context() as patch:
         patch.setattr(Path, 'unlink', busy)
+        verify(worker, post)
         assert not sweep(worker)
     assert sweep(worker) > 0

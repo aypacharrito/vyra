@@ -4,7 +4,7 @@ import re
 import time
 from datetime import datetime
 
-GRACE_SECONDS = 600  # Time to queue another destination or download a copy.
+GRACE_SECONDS = 0  # Delete on confirmed delivery; pending uses retain the only delivery copy.
 
 
 def initialize(conn):

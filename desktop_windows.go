@@ -87,7 +87,7 @@ func openDesktop(url string) error {
 		return fmt.Errorf("Could not register VYRA window: %v", registerErr)
 	}
 	defer desktopUser32.NewProc("UnregisterClassW").Call(uintptr(unsafe.Pointer(wc.Name)), instance)
-	hwnd, _, windowErr := desktopUser32.NewProc("CreateWindowExW").Call(0, uintptr(unsafe.Pointer(wc.Name)), uintptr(unsafe.Pointer(nativeText("VYRA — Your intelligence, your control"))), 0x00cf0000, 0x80000000, 0x80000000, 1500, 940, 0, 0, instance, 0)
+	hwnd, _, windowErr := desktopUser32.NewProc("CreateWindowExW").Call(0, uintptr(unsafe.Pointer(wc.Name)), uintptr(unsafe.Pointer(nativeText("VYRA — Clip Studio"))), 0x00cf0000, 0x80000000, 0x80000000, 1500, 940, 0, 0, instance, 0)
 	if hwnd == 0 {
 		return fmt.Errorf("Could not create VYRA window: %v", windowErr)
 	}

@@ -35,7 +35,7 @@ def test_slow_instagram_processing_survives_polls_and_publishes_once(worker, mon
     worker.advance_instagram(); worker.advance_instagram()
     assert calls == ['123']
     assert worker.queue()[0]['delivery']['state'] == 'published'
-    assert worker.queue()[0]['local_copy'] == 'saved'
+    assert worker.queue()[0]['local_copy'] == 'removed'
 
 
 def test_unknown_publication_never_retries_or_deletes_local_file(worker, monkeypatch):

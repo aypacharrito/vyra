@@ -13,6 +13,7 @@
   const mode=el('timingMode').value;
   el('timingMode').disabled=tiktok;
   el('postSchedule').classList.toggle('hidden',tiktok||mode!=='manual');
+  el('postSchedule').required=!tiktok&&mode==='manual';
   el('scheduleLabel').classList.toggle('hidden',tiktok||mode!=='manual');
   if(tiktok||mode==='now')el('postSchedule').value='';
   else if(mode==='recommended'&&plan)el('postSchedule').value=localInput(plan.scheduled_at);
@@ -21,7 +22,7 @@
   window.assistantBusy=false;el('regenerateCopy').disabled=false;
   el('confirmPublish').disabled=el('postPlatform').value==='instagram'&&!window.accountStatus?.instagram?.publishing?.ready;
  }
- async function prepare(regenerate=false){
+ async function prepare(regenerate=false,timingOnly=false){
   if(!activeClip)return;
   const sequence=++requestId;
   const selected=activeClip, platform=el('postPlatform').value;
@@ -36,8 +37,8 @@
    const result=await json(response);
    if(sequence!==requestId||activeClip!==selected||el('postPlatform').value!==platform)return;
    // Preserve anything typed while the model was working.
-   if(el('postTitle').value===before.title)el('postTitle').value=result.title;
-   if(el('postCaption').value===before.caption)el('postCaption').value=result.caption;
+   if(!timingOnly&&el('postTitle').value===before.title)el('postTitle').value=result.title;
+   if(!timingOnly&&el('postCaption').value===before.caption)el('postCaption').value=result.caption;
    el('copyStatus').textContent=(result.ai_generated?'AI copy ready. ':'')+result.reason;
    plan=result.timing;
    const time=new Date(plan.scheduled_at).toLocaleString(undefined,{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit',timeZoneName:'short'});
@@ -45,7 +46,7 @@
    setTiming();form.dispatchEvent(new Event('change',{bubbles:true}));
   }catch(error){
    if(sequence!==requestId||activeClip!==selected)return;
-   plan=null;el('timingMode').value='now';setTiming();
+   plan=null;el('timingMode').value='manual';setTiming();
    el('copyStatus').textContent=error.message;
    el('timingStatus').textContent='Automatic preparation did not finish. Review the existing text and choose a time before submitting.';
   }finally{if(sequence===requestId)releaseButton()}
@@ -56,7 +57,7 @@
  window.closePublisher=()=>{++requestId;window.assistantBusy=false;originalClose()};
  el('postPlatform').addEventListener('change',()=>{plan=null;el('timingMode').value='recommended';prepare()});
  el('regenerateCopy').addEventListener('click',()=>prepare(true));
- el('timingMode').addEventListener('change',()=>{el('postConsent').checked=false;setTiming()});
+ el('timingMode').addEventListener('change',()=>{el('postConsent').checked=false;if(el('timingMode').value==='recommended')prepare(false,true);else setTiming()});
  form.addEventListener('input',event=>{if(event.target.id!=='postConsent')el('postConsent').checked=false});
  form.addEventListener('submit',event=>{
   if(window.assistantBusy){event.preventDefault();event.stopImmediatePropagation();toast('Wait for post preparation to finish.');return}
@@ -79,4 +80,5 @@
   }catch(error){toast(error.message);button.disabled=false;await loadLibrary()}
  });
  window.preparePostAutomatically=prepare;
+ window.refreshPostTiming=()=>prepare(false,true);
 })();

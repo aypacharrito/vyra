@@ -162,7 +162,9 @@ def prepare(env, body):
                 with env['database']() as conn:
                     conn.execute('INSERT OR REPLACE INTO post_copy VALUES (?,?,?)', (cache_key, json.dumps(result), time.time()))
         history = account_history(env, platform)
-    queued = [p['scheduled_at'] for p in env['read_posts'](None) if p['platform'] == platform and p['status'] in ('approved', 'sending')]
+    import posting_schedule
+    with env['database']() as conn:
+        queued = [d.isoformat() for d in posting_schedule.occupied(conn, platform)]
     plan = choose_time(platform, str(body.get('timezone') or 'UTC'), history, queued)
     env['clip_path'](job, filename)  # Do not return a prepared post for a deleted clip.
     return {**result, 'timing': plan, 'visibility': 'public' if platform == 'youtube' else 'reels' if platform in ('instagram', 'facebook') else 'PUBLIC_TO_EVERYONE',

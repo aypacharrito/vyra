@@ -163,10 +163,10 @@ func install(report func(int, string)) error {
 	}
 	defer os.RemoveAll(tmp)
 	psPath := filepath.Join(tmp, "shortcut.ps1")
-	if err := shortcut(psPath, desktop, filepath.Join(dst, "VYRA.exe"), "VYRA Intelligence"); err != nil {
+	if err := shortcut(psPath, desktop, filepath.Join(dst, "VYRA.exe"), "VYRA Clip Studio"); err != nil {
 		return err
 	}
-	if err := shortcut(psPath, filepath.Join(start, "VYRA.lnk"), filepath.Join(dst, "VYRA.exe"), "VYRA Intelligence"); err != nil {
+	if err := shortcut(psPath, filepath.Join(start, "VYRA.lnk"), filepath.Join(dst, "VYRA.exe"), "VYRA Clip Studio"); err != nil {
 		return err
 	}
 	if err := shortcut(psPath, filepath.Join(start, "Uninstall VYRA.lnk"), uninstall, "Remove VYRA"); err != nil {

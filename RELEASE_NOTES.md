@@ -1,3 +1,14 @@
+# VYRA 1.5.6
+
+- Redesigned the app around Clips, Projects and AI Tasks. Removed Discover/Intelligence navigation, conversation controls and general-assistant entry points. Opens directly in Clips; saved workspace data remains available in backups.
+- Added a charcoal/ivory studio with clear Studio, Library, Publishing and Accounts views. Source links stay prominent, optional scouting is collapsed, and account/publishing controls follow the same visual system.
+- Enforced 90-minute posting intervals per platform for manual/automatic queue reservations. Persistent delivery slots prevent overdue queues from posting in a burst after restart. Global upload claims keep one file transfer active at a time.
+- Queued clips leave the review Library immediately. Delivery files clear as soon as all queued destinations confirm success, with no ten-minute delay. Pending destinations/drafts retain files; failures and cancellations return clips to review. Windows locks retry safely.
+- Time-refresh errors retain manual copy; automatic-time conflicts fetch a fresh suggestion for review. Removed silent switch to Post now when automatic preparation fails.
+- Worker protocol 0.6.5 safely refreshes older workers. Windows title, shortcuts and resource descriptions now say Clip Studio.
+
+Validation: 131 worker tests passed, one Windows-only skip; four OAuth tests passed. Browser tests exercised default Clips, all three sidebar sections, studio tabs, task editor, settings, source import, automatic copy/time, Public scheduling, queued-clip removal and Delete. No horizontal overflow at desktop/laptop widths. Windows-targeted app/installer vet and test-binary compilation passed; the app compiled. Windows binaries and real social posting were not executed here.
+
 # VYRA 1.5.5
 
 - Added Discover with a saved provider/topic pattern, optional six-hour automatic refresh, deduplication, metadata-only scouting, and fixed daily/provider budgets.

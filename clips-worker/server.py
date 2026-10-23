@@ -27,6 +27,7 @@ import instagram_storage
 import post_assistant
 import clip_deletion
 import source_discovery
+import posting_schedule
 
 BASE = Path(__file__).resolve().parent
 load_dotenv(BASE / '.env')
@@ -80,6 +81,7 @@ with database() as conn:
     post_assistant.initialize(conn)
     clip_deletion.initialize(conn)
     source_discovery.initialize(conn)
+    posting_schedule.initialize(conn)
     # A previous process may have ended after the provider accepted an upload.
     # Keep it for review instead of duplicating the submission after restart.
     conn.execute("UPDATE postings SET status='needs_review', error='Worker closed during submission. Check the platform before trying again.' WHERE status='sending'")
@@ -106,6 +108,7 @@ def store_checks(results):
             if video_retention.confirmed(result):
                 result['confirmed_at'] = old.get('confirmed_at') or utc_now()
             conn.execute('INSERT OR REPLACE INTO publishing_checks VALUES (?,?)', (post_id, json.dumps(result)))
+    video_retention.sweep(globals())
 
 
 def pending_verification():
@@ -253,11 +256,9 @@ def handle_post(row):
 
 def deliver(post_id):
     with database() as conn:
-        # The claim must be atomic across the schedule thread and Publish now.
-        claim=conn.execute("UPDATE postings SET status='sending' WHERE id=? AND status='approved'",(post_id,))
-        if claim.rowcount != 1:
-            return
-        row=conn.execute('SELECT * FROM postings WHERE id=?',(post_id,)).fetchone()
+        conn.execute('BEGIN IMMEDIATE')
+        row=posting_schedule.claim(conn,post_id,datetime.now(timezone.utc))
+        if not row: return
         conn.commit()
     try:
         response=handle_post(dict(row))
@@ -265,6 +266,8 @@ def deliver(post_id):
             conn.execute('UPDATE postings SET status=?,remote_json=? WHERE id=?',
                          ('submitted',json.dumps(response),post_id))
             conn.commit()
+        try: maintenance()
+        except Exception: pass
     except Exception as exc:
         with database() as conn:
             # No retries automatically: avoid duplicate publication if network
@@ -287,8 +290,7 @@ def worker():
             pass
         time.sleep(12)
 
-if os.getenv('VYRA_DISABLE_SCHEDULER') != '1':
-    threading.Thread(target=worker,daemon=True).start()
+
 
 
 @app.middleware('http')
@@ -318,7 +320,7 @@ def homepage():
 
 @app.get('/assets/{name}')
 def asset(name:str):
-    allowed={'connections.js':'text/javascript', 'intelligence.js':'text/javascript', 'post-assistant.js':'text/javascript', 'discovery.js':'text/javascript', 'icon.svg':'image/svg+xml', 'favicon.ico':'image/x-icon'}
+    allowed={'connections.js':'text/javascript', 'intelligence.js':'text/javascript', 'post-assistant.js':'text/javascript', 'discovery.js':'text/javascript', 'studio.css':'text/css', 'studio.js':'text/javascript', 'icon.svg':'image/svg+xml', 'favicon.ico':'image/x-icon'}
     if name not in allowed: raise HTTPException(404, 'Asset not found')
     return FileResponse(BASE/'static'/name, media_type=allowed[name])
 
@@ -326,7 +328,7 @@ def asset(name:str):
 @app.get('/api/status')
 def status():
     refresh_desktop_connection()
-    return {'version':'0.6.4','ready':bool(os.getenv('OPENAI_API_KEY')),
+    return {'version':'0.6.5','ready':bool(os.getenv('OPENAI_API_KEY')),
             'platforms':publishing_accounts(), 'media':media_status(), 'render_engine':'FFmpeg','post_safety':'consent per destination'}
 
 
@@ -453,10 +455,19 @@ def get_job(job_id:str):
 @app.get('/api/library')
 def library():
     jobs=[]
+    with database() as conn:
+        checks={r['post_id']:json.loads(r['result_json']) for r in conn.execute('SELECT * FROM publishing_checks')}
+        rows=[dict(r) for r in conn.execute("SELECT * FROM postings WHERE status != 'cancelled'")]
+        reserved={(r['job_id'],r['filename']) for r in rows if r['status'] in ('approved','sending','submitted')}
+        recoverable={(r['job_id'],r['filename']) for r in rows if r['status']=='needs_review'
+                     or checks.get(r['id'],{}).get('state') in ('failed','rejected','unavailable')
+                     or checks.get(r['id'],{}).get('visibility_mismatch')}
+        reserved-=recoverable
+
     for item in sorted(OUTPUT.glob('*/manifest.json'),key=lambda p:p.stat().st_mtime,reverse=True):
         try:
             data=json.loads(item.read_text('utf-8'))
-            clips = [c for c in data.get('clips', []) if not c.get('delete_requested_at') and NAME.fullmatch(str(c.get('file', '')))
+            clips = [c for c in data.get('clips', []) if (item.parent.name,c.get('file')) not in reserved and not c.get('delete_requested_at') and NAME.fullmatch(str(c.get('file', '')))
                      and (item.parent / c['file']).is_file()]
             if clips: jobs.append({'id':item.parent.name,'clips':clips})
             if len(jobs) >= 40: break
@@ -664,6 +675,9 @@ def make_post(body,scheduled):
         duplicate=conn.execute("SELECT id FROM postings WHERE job_id=? AND filename=? AND platform=? AND status IN ('approved','sending','submitted') LIMIT 1",(job_id,filename,provider)).fetchone()
         if duplicate:
             raise HTTPException(409,'This clip already has a queued or submitted post for this account. Check activity first.')
+        available=posting_schedule.next_free(when,posting_schedule.occupied(conn,provider))
+        if abs((available-when).total_seconds())>1:
+            raise HTTPException(409,'This account already has a nearby post. Leave 90 minutes between posts. The next available time is '+available.isoformat()+'. Choose automatic timing again or select a later time.')
         conn.execute('INSERT INTO postings VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',tuple(record.values()))
         conn.commit()
     return record
@@ -674,7 +688,7 @@ async def publish(req:Request):
     body=await req.json()
     record=await run_in_threadpool(make_post,body,False)
     threading.Thread(target=deliver,args=(record['id'],),daemon=True).start()
-    return {'id':record['id'],'status':'sending','note':'Submission initiated. Check publishing queue for provider response.'}
+    return {'id':record['id'],'status':'queued','note':'Queued for delivery. Files transfer one at a time; check Publishing for confirmation.'}
 
 
 @app.post('/api/schedule')
@@ -689,7 +703,7 @@ def queue():
         checks={r['post_id']:json.loads(r['result_json']) for r in conn.execute('SELECT * FROM publishing_checks')}
         removed = {(r['job_id'], r['filename']) for r in conn.execute('SELECT * FROM clip_cleanup')}
     return [{**row,'delivery':delivery_view(row,checks.get(row['id'])),
-             'local_copy': 'removed' if (row['job_id'], row['filename']) in removed else 'saved'} for row in read_posts()]
+             'local_copy': 'removed' if (row['job_id'], row['filename']) in removed else 'pending_delivery' if row['status'] in ('approved','sending','submitted') and checks.get(row['id'],{}).get('state') not in ('failed','rejected','unavailable') and not checks.get(row['id'],{}).get('visibility_mismatch') else 'saved'} for row in read_posts()]
 
 
 @app.post('/api/publishing/refresh')
@@ -718,3 +732,6 @@ def discovery_loop():
 
 if os.getenv('VYRA_DISABLE_SCHEDULER') != '1':
     threading.Thread(target=discovery_loop,daemon=True).start()
+
+if os.getenv('VYRA_DISABLE_SCHEDULER') != '1':
+    threading.Thread(target=worker,daemon=True).start()
