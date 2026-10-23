@@ -15,7 +15,7 @@ class Response:
 
 def connect():
     return SimpleNamespace(token=lambda _: ('secret-for-test-only', {'channel_id':'mine','user_id':'123'}),
-                           info=lambda: {'instagram': {'connected':True}})
+                           info=lambda: {'instagram': {'connected':True}}, vault=SimpleNamespace(get=lambda _:None))
 
 
 def post(privacy='private'):

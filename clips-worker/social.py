@@ -209,7 +209,8 @@ class Connectors:
             if destination.scheme != 'https' and not (destination.scheme == 'http' and destination.hostname in ('localhost', '127.0.0.1')):
                 raise ValueError('Instagram callback must be an approved HTTPS redirect (or explicitly allowed local development redirect).')
             params = {'client_id':self.settings.get(name, 'client_id'), 'redirect_uri':redirect, 'response_type':'code',
-                      'scope':'instagram_business_basic,instagram_business_content_publish', 'state':state}
+                      'scope':'instagram_business_basic,instagram_business_content_publish', 'state':state,
+                      'enable_fb_login':'0', 'force_authentication':'1'}
             url = 'https://www.instagram.com/oauth/authorize?' + urlencode(params)
         elif name == 'facebook':
             params = {'client_id': self.settings.get(name, 'client_id'), 'redirect_uri': redirect,
@@ -267,6 +268,9 @@ class Connectors:
                 raise ValueError('Instagram did not confirm the renewed connection. Your previous connection has been preserved.')
             v['user_id'] = str(raw['user_id'])
             v['scope'] = raw.get('permissions', '')
+            permissions = instagram_permissions(v['scope'])
+            if permissions and not {'instagram_business_basic', 'instagram_business_content_publish'} <= permissions:
+                raise ValueError('Instagram did not grant content publishing permission. Reconnect and approve both profile and content publishing access.')
             v['account'] = 'Instagram Professional: ' + v['user_id']
         elif provider == 'facebook':
             base = 'https://graph.facebook.com/' + facebook_version()
@@ -317,8 +321,12 @@ class Connectors:
             return data['page_access_token'], data
         age = time.time() - data.get('saved_at',0)
         exp = int(data.get('expires_in',3600))
-        if provider == 'instagram' and age < exp - 7*86400:
-            return data['access_token'], data
+        if provider == 'instagram':
+            if age >= exp:
+                raise ValueError('Instagram sign-in expired. Reconnect Instagram in Connected accounts.')
+            # Meta refreshes long-lived tokens only after their first 24 hours.
+            if age < min(86400, exp) or age < exp - 7*86400:
+                return data['access_token'], data
         if provider != 'instagram' and age < exp - 180:
             return data['access_token'], data
         if provider == 'youtube':
@@ -328,12 +336,14 @@ class Connectors:
                 'client_id':self.settings.get(provider, 'client_id'),'client_secret':self.settings.get(provider, 'client_secret'),
                 'refresh_token':data['refresh_token'],'grant_type':'refresh_token'},timeout=TIMEOUT))
         elif provider == 'instagram':
-            v = check(requests.get('https://graph.instagram.com/refresh_access_token',params={
+            v = instagram_token_response(requests.get('https://graph.instagram.com/refresh_access_token',params={
                 'grant_type':'ig_refresh_token','access_token':data['access_token']},timeout=TIMEOUT))
         else:
             v = check(requests.post('https://open.tiktokapis.com/v2/oauth/token/',data={
                 'client_key':self.settings.get(provider, 'client_id'), 'client_secret':self.settings.get(provider, 'client_secret'),
                 'refresh_token':data['refresh_token'],'grant_type':'refresh_token'},timeout=TIMEOUT))
+        if not isinstance(v.get('access_token'), str) or not v['access_token']:
+            raise ValueError('The platform did not renew your connection. Reconnect before publishing.')
         data.update(v)
         data['saved_at'] = time.time()
         self.vault.save(provider,data)
@@ -391,7 +401,7 @@ def facebook_post(connectors: Connectors, video: Path, title: str, caption: str)
         'video_state': 'PUBLISHED', 'title': title[:100], 'description': caption[:2200]}, headers=headers, timeout=TIMEOUT))
     if finished.get('success') is not True:
         raise RuntimeError('Facebook did not confirm submission. Check the Page before retrying.')
-    return {'id': video_id, 'status': 'submitted for Facebook processing', 'page': account['account']}
+    return {'id': video_id, 'status': 'submitted for Facebook processing', 'page': account['account'], 'page_id': str(account['page_id'])}
 
 
 def youtube_upload(connectors: Connectors, video: Path, title: str, description: str, privacy='public'):
@@ -479,46 +489,76 @@ def tiktok_post(connectors: Connectors, video: Path, title: str, privacy: str):
             if not resp.ok:
                 raise RuntimeError('TikTok upload failed, HTTP '+str(resp.status_code)+'. Inspect TikTok account before retry.')
             pos=last+1
-    return {'publish_id':info.get('publish_id'),'status':'submitted for TikTok processing','privacy':privacy}
+    return {'publish_id':info.get('publish_id'),'status':'submitted for TikTok processing','privacy':privacy,'account_id':str(account.get('open_id') or '')}
+
+
+def instagram_permissions(value):
+    if isinstance(value, str): return set(re.split(r'[,\s]+', value.strip())) - {''}
+    if isinstance(value, list): return {v for v in value if isinstance(v, str)}
+    return set()
+
+
+def instagram_version():
+    value = os.getenv('INSTAGRAM_GRAPH_VERSION', 'v24.0')
+    if not re.fullmatch(r'v\d+\.\d+', value):
+        raise ValueError('Check the Instagram API version in local configuration.')
+    return value
+
+
+def instagram_check(response):
+    try: data = response.json()
+    except ValueError: data = {}
+    error = data.get('error') or {}
+    if not response.ok or error:
+        code = error.get('code') if isinstance(error, dict) else None
+        messages = {190: 'Instagram sign-in expired or was rejected. Reconnect Instagram.',
+                    10: 'Instagram publishing permission is missing. Check app access and reconnect.',
+                    200: 'Instagram publishing permission is missing. Check app access and reconnect.',
+                    4: 'Instagram rate limit reached. Wait before posting again.'}
+        raise ValueError(messages.get(code, 'Instagram could not complete this step. Check Connected accounts and your Meta app permissions.'))
+    return data
 
 
 def instagram_post(connectors: Connectors, video: Path, caption: str):
-    """Upload local MP4 to private R2, give Meta a temporary signed media URL."""
-    required('R2_ACCOUNT_ID','R2_ACCESS_KEY_ID','R2_SECRET_ACCESS_KEY','R2_BUCKET')
-    import boto3
-    token,account=connectors.token('instagram')
-    uid=account.get('user_id')
-    if not uid:
-        raise ValueError('Reconnect Instagram to obtain an Instagram professional ID.')
-    s3=boto3.client('s3',endpoint_url=f'https://{os.getenv("R2_ACCOUNT_ID")}.r2.cloudflarestorage.com',
-                    aws_access_key_id=os.getenv('R2_ACCESS_KEY_ID'),
-                    aws_secret_access_key=os.getenv('R2_SECRET_ACCESS_KEY'),region_name='auto')
-    key='vyra-publishing/'+secrets.token_hex(18)+'.mp4'
-    bucket=os.getenv('R2_BUCKET')
-    s3.upload_file(str(video),bucket,key,ExtraArgs={'ContentType':'video/mp4'})
-    media_url=s3.generate_presigned_url('get_object',Params={'Bucket':bucket,'Key':key},ExpiresIn=3600)
-    version=os.getenv('INSTAGRAM_GRAPH_VERSION','v24.0')
-    base=f'https://graph.instagram.com/{version}'
+    """Stage once and return a durable processing receipt, without an early timeout."""
+    import instagram_storage as storage
+    token, account = connectors.token('instagram')
+    uid = str(account.get('user_id') or '')
+    if not uid.isdigit(): raise ValueError('Reconnect Instagram to obtain a professional account ID.')
+    scopes = instagram_permissions(account.get('scope'))
+    if scopes and 'instagram_business_content_publish' not in scopes:
+        raise ValueError('Reconnect Instagram and approve content publishing permission.')
+    key, media_url = storage.stage(connectors.vault, video)
     try:
-        created=check(requests.post(f'{base}/{uid}/media',data={
-            'media_type':'REELS','video_url':media_url,'caption':caption[:2200]},
-            headers={'Authorization':'Bearer '+token},timeout=TIMEOUT))
-        container=created['id']
-        # Allow Meta processing without busy-polling.
-        for _ in range(15):
-            time.sleep(8)
-            stat=check(requests.get(f'{base}/{container}',params={'fields':'status_code,status'},
-                                    headers={'Authorization':'Bearer '+token},timeout=TIMEOUT))
-            status=stat.get('status_code','')
-            if status == 'FINISHED':
-                result=check(requests.post(f'{base}/{uid}/media_publish',data={'creation_id':container},
-                                           headers={'Authorization':'Bearer '+token},timeout=TIMEOUT))
-                return {'id':result.get('id'),'status':'published'}
-            if status in {'ERROR','EXPIRED'}:
-                raise RuntimeError('Instagram rejected media processing: '+str(stat.get('status',''))[:180])
-        raise RuntimeError('Instagram still processing. Inspect creator account before retrying to prevent duplicates.')
-    finally:
-        try:
-            s3.delete_object(Bucket=bucket,Key=key)
-        except Exception:
-            pass
+        created = instagram_check(requests.post(f'https://graph.instagram.com/{instagram_version()}/{uid}/media',
+            data={'media_type': 'REELS', 'video_url': media_url, 'caption': caption[:2200]},
+            headers={'Authorization': 'Bearer ' + token}, timeout=TIMEOUT))
+        container = str(created.get('id') or '')
+        if not container.isdigit(): raise ValueError('Instagram did not return a media container. Check the account before retrying.')
+        storage.attach(connectors.vault, key, container)
+        return {'container_id': container, 'account_id': uid, 'status': 'processing', 'created_at': time.time()}
+    except requests.RequestException:
+        # Meta may have accepted the container. Keep staging until its expiry.
+        raise ValueError('Instagram submission was interrupted. Check the account before retrying. Your local clip is preserved.') from None
+
+
+def instagram_container(connectors, receipt):
+    token, account = connectors.token('instagram')
+    if str(account.get('user_id')) != receipt.get('account_id'):
+        raise ValueError('Reconnect the Instagram account that received this upload.')
+    container = str(receipt.get('container_id') or '')
+    if not container.isdigit(): raise ValueError('No valid Instagram container receipt was saved.')
+    data = instagram_check(requests.get(f'https://graph.instagram.com/{instagram_version()}/{container}',
+        params={'fields': 'status_code'}, headers={'Authorization': 'Bearer ' + token}, timeout=TIMEOUT))
+    return data.get('status_code', '')
+
+
+def instagram_publish(connectors, receipt):
+    token, account = connectors.token('instagram')
+    if str(account.get('user_id')) != receipt.get('account_id'):
+        raise ValueError('Reconnect the Instagram account that received this upload.')
+    result = instagram_check(requests.post(f'https://graph.instagram.com/{instagram_version()}/{receipt["account_id"]}/media_publish',
+        data={'creation_id': receipt['container_id']}, headers={'Authorization': 'Bearer ' + token}, timeout=TIMEOUT))
+    media_id = str(result.get('id') or '')
+    if not media_id.isdigit(): raise ValueError('Instagram did not confirm publication. Check your account before trying again.')
+    return {**receipt, 'id': media_id, 'status': 'published'}

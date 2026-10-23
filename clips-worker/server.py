@@ -20,8 +20,10 @@ from starlette.concurrency import run_in_threadpool
 from clip_engine import process_video
 from media_tools import media_status
 from desktop_connection import refresh_desktop_connection
-from social import Connectors, Vault, VALID_PLATFORMS, facebook_post, instagram_post, tiktok_post, youtube_upload
-from publishing_status import delivery_view, instagram_readiness, youtube_checks
+from social import Connectors, Vault, VALID_PLATFORMS, facebook_post, instagram_post, instagram_container, instagram_publish, tiktok_post, youtube_upload
+from publishing_status import delivery_view, instagram_readiness, youtube_checks, destination_checks, receipt
+import video_retention
+import instagram_storage
 
 BASE = Path(__file__).resolve().parent
 load_dotenv(BASE / '.env')
@@ -41,6 +43,7 @@ PUBLISHING_LOCK = threading.Lock()
 PUBLISHING_HEALTH = {}
 CONNECTION_EVENTS = {}
 LAST_PUBLISHING_CHECK = 0.0
+LAST_MAINTENANCE = 0.0
 JOBS: dict[str,dict] = {}
 ALLOWED = {'.mp4','.mov','.mkv','.webm'}
 NAME = re.compile(r'^clip_\d{2}\.mp4$')
@@ -70,6 +73,7 @@ def database():
 
 with database() as conn:
     conn.execute('CREATE TABLE IF NOT EXISTS publishing_checks (post_id TEXT PRIMARY KEY, result_json TEXT NOT NULL)')
+    video_retention.initialize(conn)
     # A previous process may have ended after the provider accepted an upload.
     # Keep it for review instead of duplicating the submission after restart.
     conn.execute("UPDATE postings SET status='needs_review', error='Worker closed during submission. Check the platform before trying again.' WHERE status='sending'")
@@ -80,9 +84,29 @@ def utc_now():
     return datetime.now(timezone.utc).isoformat()
 
 
-def read_posts():
+def read_posts(limit=200):
     with database() as conn:
-        return [dict(r) for r in conn.execute('SELECT * FROM postings ORDER BY scheduled_at DESC LIMIT 200').fetchall()]
+        sql = 'SELECT * FROM postings ORDER BY scheduled_at DESC'
+        return [dict(r) for r in conn.execute(sql + (' LIMIT ?' if limit else ''), (limit,) if limit else ()).fetchall()]
+
+
+def store_checks(results):
+    with database() as conn:
+        conn.execute('BEGIN IMMEDIATE')
+        for post_id, result in results.items():
+            before = conn.execute('SELECT result_json FROM publishing_checks WHERE post_id=?', (post_id,)).fetchone()
+            old = json.loads(before['result_json']) if before else {}
+            result = dict(result)
+            if video_retention.confirmed(result):
+                result['confirmed_at'] = old.get('confirmed_at') or utc_now()
+            conn.execute('INSERT OR REPLACE INTO publishing_checks VALUES (?,?)', (post_id, json.dumps(result)))
+
+
+def pending_verification():
+    with database() as conn:
+        checks = {r['post_id']: json.loads(r['result_json']) for r in conn.execute('SELECT * FROM publishing_checks')}
+    rows = [r for r in read_posts(None) if r['status'] == 'submitted' and not video_retention.confirmed(checks.get(r['id'], {}))]
+    return sorted(rows, key=lambda r: checks.get(r['id'], {}).get('checked_at', ''))
 
 
 def publishing_accounts():
@@ -102,15 +126,77 @@ def refresh_publishing():
     with PUBLISHING_LOCK:
         if time.monotonic() - LAST_PUBLISHING_CHECK < 30:
             return {'platforms': publishing_accounts(), 'cached': True}
-        results = youtube_checks(CONNECT, read_posts())
-        with database() as conn:
-            for post_id, result in results.items():
-                conn.execute('INSERT OR REPLACE INTO publishing_checks VALUES (?,?)', (post_id, json.dumps(result)))
+        rows = pending_verification()
+        store_checks({**youtube_checks(CONNECT, rows), **destination_checks(CONNECT, rows)})
         identity = CONNECT.info()['instagram'].get('account')
         health = instagram_readiness(CONNECT)
         PUBLISHING_HEALTH['instagram'] = {'identity': identity, 'result': health}
         LAST_PUBLISHING_CHECK = time.monotonic()
     return {'platforms': publishing_accounts(), 'cached': False}
+
+
+def advance_instagram():
+    """Complete an already-approved container. Claim once before media_publish."""
+    finished = set()
+    for row in read_posts(None):
+        if row['platform'] != 'instagram': continue
+        saved = receipt(row)
+        container = saved.get('container_id')
+        if not container: continue
+        if saved.get('status') == 'published':
+            finished.add(container)
+            continue
+        if row['status'] != 'submitted': continue
+        try:
+            state = instagram_container(CONNECT, saved)
+        except Exception as exc:
+            # Polling is read-only and can safely resume after a temporary failure.
+            store_checks({row['id']: {'verified': False, 'state': 'unavailable', 'checked_at': utc_now(),
+                'label': 'Instagram status unavailable', 'message': str(exc)[:240] if isinstance(exc, ValueError) else 'Reconnect Instagram and check again. Local clip preserved.'}})
+            continue
+        if state in ('ERROR', 'EXPIRED'):
+            finished.add(container)
+            with database() as conn:
+                conn.execute("UPDATE postings SET status='needs_review', error=? WHERE id=? AND status='submitted'",
+                    ('Instagram could not process this Reel. Your local clip is preserved; review the video and connection settings.', row['id']))
+            continue
+        if state not in ('FINISHED', 'PUBLISHED'):
+            store_checks({row['id']: {'verified': True, 'state': 'processing', 'checked_at': utc_now(),
+                'label': 'Instagram processing', 'message': 'Waiting for Instagram to finish. No second upload will be created.'}})
+            continue
+        # Meta has fetched the file; staging is no longer needed.
+        finished.add(container)
+        if state == 'PUBLISHED':
+            store_checks({row['id']: {'verified': True, 'state': 'published', 'checked_at': utc_now(),
+                'label': 'Published · Confirmed', 'message': 'Instagram confirmed this container is published.'}})
+            continue
+        with database() as conn:
+            claim = conn.execute("UPDATE postings SET status='sending' WHERE id=? AND status='submitted' AND remote_json=?",
+                (row['id'], row['remote_json']))
+            if claim.rowcount != 1: continue
+        try:
+            result = instagram_publish(CONNECT, saved)
+            with database() as conn:
+                conn.execute("UPDATE postings SET status='submitted', remote_json=?, error=NULL WHERE id=?",
+                    (json.dumps(result), row['id']))
+            store_checks({row['id']: {'verified': True, 'state': 'published', 'checked_at': utc_now(),
+                'label': 'Published · Confirmed', 'message': 'Instagram confirmed Reel publication.'}})
+        except Exception:
+            with database() as conn:
+                conn.execute("UPDATE postings SET status='needs_review', error=? WHERE id=?",
+                    ('Instagram publication was not confirmed. Check the account before retrying; no automatic duplicate will be sent.', row['id']))
+    instagram_storage.collect(VAULT, finished)
+
+
+def maintenance():
+    global LAST_MAINTENANCE
+    with PUBLISHING_LOCK:
+        if time.monotonic() - LAST_MAINTENANCE < 60: return
+        advance_instagram()
+        rows = pending_verification()
+        store_checks({**youtube_checks(CONNECT, rows), **destination_checks(CONNECT, rows)})
+        video_retention.sweep(globals())
+        LAST_MAINTENANCE = time.monotonic()
 
 
 def progress(job_id, message, pct):
@@ -188,6 +274,7 @@ def worker():
                 ready=conn.execute("SELECT id FROM postings WHERE status='approved' AND scheduled_at<=? ORDER BY scheduled_at LIMIT 1",(now,)).fetchone()
             if ready:
                 deliver(ready['id'])
+            maintenance()
         except Exception:
             pass
         time.sleep(12)
@@ -294,10 +381,13 @@ def get_job(job_id:str):
 @app.get('/api/library')
 def library():
     jobs=[]
-    for item in sorted(OUTPUT.glob('*/manifest.json'),key=lambda p:p.stat().st_mtime,reverse=True)[:40]:
+    for item in sorted(OUTPUT.glob('*/manifest.json'),key=lambda p:p.stat().st_mtime,reverse=True):
         try:
             data=json.loads(item.read_text('utf-8'))
-            jobs.append({'id':item.parent.name,'clips':data.get('clips',[])})
+            clips = [c for c in data.get('clips', []) if NAME.fullmatch(str(c.get('file', '')))
+                     and (item.parent / c['file']).is_file()]
+            if clips: jobs.append({'id':item.parent.name,'clips':clips})
+            if len(jobs) >= 40: break
         except (ValueError,OSError):
             pass
     return jobs
@@ -328,7 +418,25 @@ def login(provider:str,access:str='basic'):
 def connection_setup(provider:str):
     if provider not in VALID_PLATFORMS:
         raise HTTPException(404, 'Unknown platform')
-    return CONNECT.settings.info(provider)
+    value = CONNECT.settings.info(provider)
+    if provider == 'instagram': value['storage'] = instagram_storage.info(VAULT)
+    return value
+
+
+@app.put('/api/connections/instagram/storage')
+async def save_instagram_storage(req:Request):
+    global LAST_PUBLISHING_CHECK
+    raw = await req.body()
+    if len(raw) > 4096: raise HTTPException(413, 'Storage settings are too large.')
+    try:
+        body = json.loads(raw)
+        if not isinstance(body, dict): raise ValueError('Check the storage fields.')
+        result = instagram_storage.save(VAULT, body)
+        PUBLISHING_HEALTH.pop('instagram', None)
+        LAST_PUBLISHING_CHECK = 0.0
+        return result
+    except (ValueError, TypeError):
+        raise HTTPException(400, 'Check all storage fields and wait for pending Instagram uploads before changing storage.') from None
 
 
 @app.put('/api/connections/{provider}')
@@ -447,6 +555,8 @@ def make_post(body,scheduled):
             'remote_json':None,'error':None,'created_at':utc_now()}
     with database() as conn:
         conn.execute('BEGIN IMMEDIATE')
+        # Recheck after acquiring the same lock used by storage cleanup.
+        clip_path(job_id, filename)
         duplicate=conn.execute("SELECT id FROM postings WHERE job_id=? AND filename=? AND platform=? AND status IN ('approved','sending','submitted') LIMIT 1",(job_id,filename,provider)).fetchone()
         if duplicate:
             raise HTTPException(409,'This clip already has a queued or submitted post for this account. Check activity first.')
@@ -473,7 +583,9 @@ async def schedule(req:Request):
 def queue():
     with database() as conn:
         checks={r['post_id']:json.loads(r['result_json']) for r in conn.execute('SELECT * FROM publishing_checks')}
-    return [{**row,'delivery':delivery_view(row,checks.get(row['id']))} for row in read_posts()]
+        removed = {(r['job_id'], r['filename']) for r in conn.execute('SELECT * FROM clip_cleanup')}
+    return [{**row,'delivery':delivery_view(row,checks.get(row['id'])),
+             'local_copy': 'removed' if (row['job_id'], row['filename']) in removed else 'saved'} for row in read_posts()]
 
 
 @app.post('/api/publishing/refresh')

@@ -17,15 +17,22 @@ verification for broader use; unverified upload projects can be private-only.
 ## Instagram Reels
 
 Use a Meta app with Instagram API and Instagram Login, plus an Instagram
-Business or Creator account. Register the callback below and save the app ID
-and secret inside VYRA. Approve basic profile and content publishing access.
+Business or Creator account. Register the callback below and save the **Instagram App ID and Instagram App Secret** from
+Meta’s **API setup with Instagram login**, rather than the parent Facebook app credentials, inside VYRA.
+Development-mode accounts must accept their Instagram tester invitation. Approve basic profile and content publishing access.
 
 `https://vyra-five-lac.vercel.app/api/instagram-callback`
 
 Connecting an account and uploading media are separate steps. Instagram must
 fetch the clip from a reachable URL. The existing publisher uses temporary
 signed URLs from a private R2 staging bucket, which must be configured before
-posting. Local clips remain available for manual upload while hosting is absent.
+posting. Open **Instagram App settings → Temporary video storage** and save the Cloudflare account ID, R2 bucket, and Object Read & Write S3 credentials. These settings stay in the local encrypted vault; no environment-file editing is required. Existing R2 environment settings still take precedence. Local clips remain available while hosting is absent.
+
+VYRA retains the temporary file during media processing. The background worker polls the existing container once per minute and claims publication once after it finishes; restarting never creates a second upload. Interrupted publication requires review. Temporary files are deleted after Meta consumes them or after their 24-hour container window expires (with a one-hour buffer). Failed deletions remain recorded and retry while VYRA is running. Add an R2 lifecycle rule expiring the **vyra-publishing/** prefix after two days as a fallback when the PC stays off. The app does not edit bucket lifecycle rules automatically.
+
+Local exports are removed ten minutes after all queued destinations confirm publication. Queued/sending/uncertain posts and unsent drafts retain the file. Original user videos outside the app, posts on social platforms, and publishing history are not deleted.
+
+Instagram direct resumable upload is restricted to the Facebook Login for Business path; this app uses Instagram Login, so it deliberately keeps the temporary-URL method. A saved connection is not proof that storage credentials, app roles, or publishing permissions are valid. The worker reports those stages separately.
 
 ## Facebook Reels
 
@@ -56,3 +63,7 @@ Implementation references studied:
 - [Meta's Facebook Reels sample code](https://github.com/fbsamples/Facebook-Reels-Publishing-API-Postman-Collection)
 - [Meta's Page token workflow](https://www.postman.com/meta/instagram/documentation/6yqw8pt/instagram-api)
 - [Instagram Login](https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login/business-login/)
+
+- [Meta content publishing and upload restrictions](https://developers.facebook.com/documentation/instagram-platform/content-publishing)
+- [Meta resumable upload prerequisites](https://developers.facebook.com/documentation/instagram-platform/content-publishing/resumable-uploads)
+- [TikTok post-status confirmation](https://developers.tiktok.com/doc/content-posting-api-reference-get-video-status)

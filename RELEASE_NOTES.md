@@ -1,3 +1,13 @@
+# VYRA 1.5.3
+
+- Auto-delete local MP4s and generated subtitle files ten minutes after all queued destinations confirm posting. Keep receipts, pending/uncertain posts, unsent drafts and original user footage.
+- Verify YouTube processing, Instagram publication, Facebook published/ready status and TikTok PUBLISH_COMPLETE before allowing cleanup. Recheck in the background while VYRA runs; retry locked Windows files after playback closes.
+- Keep Instagram processing containers and temporary files across restarts. Poll instead of timing out after two minutes, and publish each approved container once. Unknown write outcomes stop for review.
+- Add private R2 storage setup to Instagram App settings, detect missing publishing permission, avoid refreshing fresh tokens too early, and explain which Instagram app credentials to use.
+- Route the source launcher through the same worker shipped in the desktop app.
+
+Install this release through the verified Windows release workflow. Source changes alone do not update an already-installed copy. No live account post or Windows installation was performed during this change.
+
 # VYRA 1.5.2 Open Beta
 
 - New YouTube posts default to Public in the publishing form, Intelligence drafts and the upload request. Explicit visibility choices remain available for individual posts, and activity checks the actual privacy YouTube applied.

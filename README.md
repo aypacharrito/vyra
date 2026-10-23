@@ -39,7 +39,9 @@ Tasks produce text and code and can research current information using OpenAI we
 
 Open **VYRA Clips** in the sidebar: upload, captions, exports, accounts and publishing stay inside the desktop window. Account authorization opens the platform’s official sign-in in your default browser; return to VYRA afterward. If needed, **Set up video tools** installs Python dependencies quietly with progress inside VYRA. Python 3.11+ must be installed. VYRA downloads a verified FFmpeg/FFprobe build into its private local tools folder on first opening Clips. Its progress stays in the app. Use Repair video tools if necessary; no global PATH changes are required. Dependencies go into a private `.venv` in the worker folder.
 
-Clips transcribes spoken audio, selects candidate moments and renders vertical videos locally with word-highlighted captions. Timing comes from the actual transcript timestamps. YouTube, Instagram, Facebook and TikTok integrations require your own authorized accounts, developer credentials and applicable platform approvals. Instagram requires staging storage. TikTok retains fresh confirmation at posting time.
+Clips transcribes spoken audio, selects candidate moments and renders vertical videos locally with word-highlighted captions. Timing comes from the actual transcript timestamps. YouTube, Instagram, Facebook and TikTok integrations require your own authorized accounts, developer credentials and applicable platform approvals. Instagram uses temporary private staging storage, configurable in its App settings. TikTok retains fresh confirmation at posting time.
+
+Posted clips are automatically removed from local storage ten minutes after every queued destination confirms publication. Failed/uncertain uploads, pending destinations and unsent drafts retain their files. Download a copy or queue additional destinations during that window. Publishing history and social posts remain. Cleanup runs while VYRA is open and resumes after restart.
 
 Use **Connected accounts → Set up connection** to privately import your Google Desktop OAuth JSON or save Meta app details. Connect through each platform’s sign-in screen. Facebook requires explicit Page selection. See [social setup](docs/SOCIAL_CONNECTIONS.md).
 
@@ -57,7 +59,7 @@ Before distributing a new build, verify its actual website downloads and workflo
 
 ## Development and checks
 
-Run `go test ./...` and `go vet ./...`. Check interface syntax with `node --check web/app.js`. Install worker requirements plus pytest/httpx, then run `python -m pytest clips-worker/tests -q`. The root Python files remain a compatibility copy; the installer uses `clips-worker`.
+Run `go test ./...` and `go vet ./...`. Check interface syntax with `node --check web/app.js`. Install worker requirements plus pytest/httpx, then run `python -m pytest clips-worker/tests -q`. The root Python launcher delegates to `clips-worker`, preserving existing root-launcher data. The installer also uses `clips-worker`.
 
 The test-only Go browser fixture (`VYRA_BROWSER_TEST=1`, `TestBrowserFixture`) provides fake OpenAI responses on port 48821. It never ships in release executables. For isolated manual app testing, `VYRA_DATA_DIR`, `VYRA_PORT` and `VYRA_HEADLESS=1` keep data and browser behavior separate from the normal installation.
 

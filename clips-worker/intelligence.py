@@ -68,6 +68,8 @@ def register_intelligence(app, env):
                 before_caption=current['snippet'].get('description',''),scheduled_at='',visibility='unchanged')
         else: raise ValueError('Published-video editing currently supports YouTube titles and descriptions.')
         with env['database']() as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            if target == 'post': env['clip_path'](data['job_id'], data['filename'])
             conn.execute('INSERT INTO drafts VALUES (?,?,1,?)',(data['id'],json.dumps(data),'draft'))
         return {**data,'revision':1,'status':'draft','review_required':True}
 

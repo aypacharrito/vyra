@@ -5,7 +5,8 @@ import os
 import re
 import requests
 from performance import MeasurementError, read_measurements
-from social import TIMEOUT, facebook_version
+from social import TIMEOUT, facebook_version, instagram_permissions, instagram_version
+import instagram_storage
 
 
 def now():
@@ -96,16 +97,19 @@ def youtube_checks(connect, rows):
 
 
 def instagram_readiness(connect):
-    hosting = all(os.getenv(k) for k in ('R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET'))
+    hosting = instagram_storage.info(connect.vault)['configured']
     result = {'checked_at': now(), 'hosting_ready': hosting, 'verified': False, 'ready': False}
     if not connect.info()['instagram']['connected']:
         return {**result, 'message': 'Connect your Instagram professional account before publishing.'}
     try:
         token, account = connect.token('instagram')
+        scopes = instagram_permissions(account.get('scope'))
+        if scopes and not {'instagram_business_basic', 'instagram_business_content_publish'} <= scopes:
+            return {**result, 'message': 'Reconnect Instagram and approve profile and content publishing permission.'}
         uid = str(account.get('user_id') or '')
         if not uid.isdigit():
             raise ValueError('Missing professional account ID')
-        data = read_measurements(requests.get('https://graph.instagram.com/'+facebook_version()+'/'+uid,
+        data = read_measurements(requests.get('https://graph.instagram.com/'+instagram_version()+'/'+uid,
             params={'fields': 'id,username'}, headers={'Authorization': 'Bearer '+token}, timeout=TIMEOUT))
         if not data.get('id') or not data.get('username'):
             raise ValueError('No account returned')
@@ -117,8 +121,55 @@ def instagram_readiness(connect):
     except (ValueError, RuntimeError, requests.RequestException):
         result['message'] = 'Instagram could not verify this account. Reconnect Instagram and check again.'
     if not hosting:
-        result['setup_message'] = 'Video upload hosting is missing. Your clips stay saved; Instagram publishing is blocked until setup is complete.'
+        result['setup_message'] = 'Open Instagram App settings → Temporary video storage and save your R2 bucket credentials. Your clips stay saved until setup is complete.'
     return result
+
+
+def destination_checks(connect, rows):
+    """Read provider results; acceptance/processing alone never permits deletion."""
+    results = {}
+    for row in [r for r in rows if r['status'] == 'submitted' and r['platform'] != 'youtube'][:25]:
+        saved = receipt(row)
+        platform = row['platform']
+        try:
+            token, account = connect.token(platform)
+            headers = {'Authorization': 'Bearer ' + token}
+            state = 'processing'
+            if platform == 'instagram':
+                if saved.get('status') != 'published' or not str(saved.get('id') or '').isdigit():
+                    continue
+                if saved.get('account_id') and saved['account_id'] != str(account.get('user_id')):
+                    raise ValueError('Different connected account')
+                data = read_measurements(requests.get(
+                    f'https://graph.instagram.com/{instagram_version()}/{saved["id"]}',
+                    params={'fields': 'id,permalink'}, headers=headers, timeout=TIMEOUT))
+                if str(data.get('id')) == str(saved['id']): state = 'published'
+            elif platform == 'facebook':
+                if saved.get('page_id') != str(account.get('page_id')) or not str(saved.get('id') or '').isdigit():
+                    continue
+                data = read_measurements(requests.get(
+                    f'https://graph.facebook.com/{facebook_version()}/{saved["id"]}',
+                    params={'fields': 'status,published'}, headers=headers, timeout=TIMEOUT))
+                status = data.get('status', {})
+                if status.get('video_status') == 'error': state = 'failed'
+                elif data.get('published') is True and status.get('video_status') == 'ready': state = 'published'
+            elif platform == 'tiktok':
+                if not saved.get('publish_id'): continue
+                if saved.get('account_id') and saved['account_id'] != str(account.get('open_id')):
+                    raise ValueError('Different connected account')
+                data = read_measurements(requests.post('https://open.tiktokapis.com/v2/post/publish/status/fetch/',
+                    json={'publish_id': saved['publish_id']}, headers=headers, timeout=TIMEOUT))
+                status = data.get('data', {}).get('status')
+                if status == 'PUBLISH_COMPLETE': state = 'published'
+                elif status == 'FAILED': state = 'failed'
+            else:
+                continue
+            results[row['id']] = {'checked_at': now(), 'verified': True, 'state': state,
+                'label': 'Published · Confirmed' if state == 'published' else 'Post failed' if state == 'failed' else 'Upload processing',
+                'message': 'The platform confirmed publication.' if state == 'published' else 'Your local clip stays saved until publication is confirmed.'}
+        except (ValueError, RuntimeError, requests.RequestException):
+            results[row['id']] = unavailable('Could not verify this post. Reconnect the original account and check again. Your local clip is preserved.')
+    return results
 
 
 def delivery_view(row, checked=None):
