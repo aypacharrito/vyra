@@ -1,6 +1,6 @@
 {
-  "version": "1.5.5",
-  "url": "https://vyra-five-lac.vercel.app/downloads/1.5.5/VYRA-Setup.exe",
-  "sha256": "67b53f9cdfe131deba1415d7dda10ad8a4fe5139e4d2ebb35222004a09b4d594",
-  "notes": "Automatic AI post copy, suggested posting times, Public-only new posts, clip deletion and Instagram posting diagnostics."
+  "version": "1.5.6",
+  "url": "https://vyra-five-lac.vercel.app/downloads/1.5.6/VYRA-Setup.exe",
+  "sha256": "350e46153f3aa421817a3753e3f1fe8d4b877104fbc3751fba6f48d871ebff76",
+  "notes": "A focused Clip Studio redesign, enforced posting intervals, serialized uploads and automatic cleanup after confirmed delivery."
 }
