@@ -1,3 +1,12 @@
+# VYRA 1.5.11
+
+- Reworked the in-app package setup. A healthy private interpreter is reused even if global Python is unavailable. Broken, 32-bit and unsupported interpreters are skipped while checking installed 64-bit Python 3.11–3.13 launcher options.
+- Backs up an incompatible private environment before replacement, repairs/upgrades its private pip, installs binary packages and verifies the same imports/timezone/Deno checks used at launch before reporting success. Customer clips, credentials and queues are outside the environment and retained.
+- Captures bounded setup output and displays the actual failing step/package under Setup details. Credentials and URLs are redacted. Removed the duplicate failure toast.
+- Removed the blue focus outline on the custom Windows buttons and aligned header status/actions with the concept's headline.
+
+Validation: portable interpreter-selection, failure-diagnostic redaction/bounding, asset routing and worker command/listener tests passed. Windows x64 Python 3.11 dependency resolution succeeded with binary wheels. Browser tests covered setup failure details, retry, header/window controls, existing studio/publishing flows and desktop/laptop sizing. Windows-targeted vet, application build and test-binary compilation passed. Actual dependency installation on the user's laptop is unverified; a screenshot of the old generic error does not establish the failing package.
+
 # VYRA 1.5.10
 
 - Replaced PowerShell/WMI/Get-NetTCPConnection worker replacement with direct Windows listener/process APIs. Verifies the legacy VYRA status, exact loopback listener, held process handle, Windows session and Python/uvicorn arguments before replacing it. Both the desktop launcher and shipped batch launcher are recognized; unrelated processes and active uploads stay running. Failures now identify the check that blocked recovery.

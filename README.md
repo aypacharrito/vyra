@@ -1,4 +1,4 @@
-# VYRA 1.5.10 — Open Beta
+# VYRA 1.5.11 — Open Beta
 
 VYRA is a Windows AI workspace with a Steam-inspired library, streaming OpenAI conversations, visible voice captions, project context, repeatable AI tasks and an integrated Clips Studio. VYRA owns its Windows window and embeds Microsoft WebView2 Runtime; it does not launch Edge in app mode. The runtime is included on current Windows versions and can also be installed from Microsoft.
 
@@ -37,7 +37,7 @@ Tasks produce text and code and can research current information using OpenAI we
 
 ## Clips Studio
 
-Open **VYRA Clips** in the sidebar: upload, captions, exports, accounts and publishing stay inside the desktop window. Account authorization opens the platform’s official sign-in in your default browser; return to VYRA afterward. If needed, **Set up video tools** installs Python dependencies quietly with progress inside VYRA. Python 3.11+ must be installed. VYRA downloads a verified FFmpeg/FFprobe build into its private local tools folder on first opening Clips. Its progress stays in the app. Use Repair video tools if necessary; no global PATH changes are required. Dependencies go into a private `.venv` in the worker folder.
+Open **VYRA Clips** in the sidebar: upload, captions, exports, accounts and publishing stay inside the desktop window. Account authorization opens the platform’s official sign-in in your default browser; return to VYRA afterward. If needed, **Set up video tools** installs Python dependencies quietly with progress inside VYRA. Use 64-bit Python 3.11, 3.12 or 3.13 (3.12 recommended). The in-app repair reuses a healthy private environment, searches compatible installed interpreters, repairs pip and verifies packages before opening. If setup fails, expand Setup details for the actual error. VYRA downloads a verified FFmpeg/FFprobe build into its private local tools folder on first opening Clips. Its progress stays in the app. Use Repair video tools if necessary; no global PATH changes are required. Dependencies go into a private `.venv` in the worker folder.
 
 Clips transcribes spoken audio, selects candidate moments and renders vertical videos locally with word-highlighted captions. Timing comes from the actual transcript timestamps. YouTube, Instagram, Facebook and TikTok integrations require your own authorized accounts, developer credentials and applicable platform approvals. Instagram uses temporary private staging storage, configurable in its App settings. TikTok retains fresh confirmation at posting time.
 

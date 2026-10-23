@@ -22,7 +22,7 @@ import (
 //go:embed web/*
 var content embed.FS
 
-var version = "1.5.10"
+var version = "1.5.11"
 
 const clipsWorkerVersion = "0.6.6"
 
@@ -312,7 +312,7 @@ func (a *app) launchClips(w http.ResponseWriter, r *http.Request) {
 	// An app upgrade preserves the private venv. Install newly required timezone
 	// data through the existing in-app setup flow instead of launching a worker
 	// whose automatic posting time would fail on Windows.
-	probeArgs := []string{"-c", "from zoneinfo import ZoneInfo; ZoneInfo('America/Los_Angeles'); import fastapi, openai, boto3, yt_dlp, deno; import yt_dlp_ejs; deno.find_deno_bin()"}
+	probeArgs := []string{"-c", clipsProbeCode}
 	if strings.EqualFold(filepath.Base(exe), "py.exe") {
 		probeArgs = append([]string{"-3"}, probeArgs...)
 	}

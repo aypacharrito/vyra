@@ -225,7 +225,7 @@ func startMediaSetup() {
 		videoSetup.Unlock()
 		return
 	}
-	videoSetup.status = clipsSetupStatus{"running", "Preparing the video engine…"}
+	videoSetup.status = clipsSetupStatus{State: "running", Detail: "Preparing the video engine…"}
 	videoSetup.Unlock()
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)

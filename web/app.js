@@ -83,20 +83,21 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshSta
 setInterval(()=>{if(!document.hidden)refreshStatus(true)},15000);
 let clipsContainer=null,clipsLoading=false;
 function mountClips(){
- if(!clipsContainer){clipsContainer=document.createElement('section');clipsContainer.className='main-content clips-embedded';clipsContainer.innerHTML=`<div id="studio-content" class="studio-content"><div class="studio-opening"><header class="studio-opening-heading"><div><h1>Your next standout moment.</h1><p>Import. Clip. Publish.</p></div><span class="studio-session-state">Opening studio</span></header><div class="studio-opening-tabs" aria-label="Studio views available after startup"><span class="selected">Studio</span><span>Library</span><span>Publishing</span><span>Accounts</span></div><section class="studio-loading"><h2>Your studio is opening.</h2><p id="clips-state" role="status" aria-live="polite">Preparing your clips and saved connections…</p><div id="studio-recovery" hidden>${btn('Try again','launch-clips','primary-btn')}${btn('Repair video tools','clips-setup','secondary-btn')}</div></section></div></div>`;root.after(clipsContainer)}
+ if(!clipsContainer){clipsContainer=document.createElement('section');clipsContainer.className='main-content clips-embedded';clipsContainer.innerHTML=`<div id="studio-content" class="studio-content"><div class="studio-opening"><header class="studio-opening-heading"><div><h1>Your next standout moment.</h1><p>Import. Clip. Publish.</p></div><span class="studio-session-state">Opening studio</span></header><div class="studio-opening-tabs" aria-label="Studio views available after startup"><span class="selected">Studio</span><span>Library</span><span>Publishing</span><span>Accounts</span></div><section class="studio-loading"><h2>Your studio is opening.</h2><p id="clips-state" role="status" aria-live="polite">Preparing your clips and saved connections…</p><details id="setup-diagnostics" hidden><summary>Setup details</summary><pre></pre></details><div id="studio-recovery" hidden>${btn('Try again','launch-clips','primary-btn')}${btn('Repair video tools','clips-setup','secondary-btn')}</div></section></div></div>`;root.after(clipsContainer)}
  clipsContainer.hidden=state.view!=='clips';return clipsContainer;
 }
 async function checkClips(){mountClips();if(!clipsContainer.querySelector('iframe')&&!clipsLoading)await runClips()}
-function studioLoading(message,failed=false){
+function studioLoading(message,failed=false,diagnostics=''){
  mountClips();const loading=clipsContainer.querySelector('.studio-loading');
  if(!loading){if(failed)toast(message);return}
  loading.querySelector('h2').textContent=failed?'Let’s reopen your studio.':'Your studio is opening.';
  loading.querySelector('#clips-state').textContent=message;
  loading.querySelector('#studio-recovery').hidden=!failed;
+ const details=loading.querySelector('#setup-diagnostics');details.hidden=!diagnostics;details.querySelector('pre').textContent=diagnostics;
  clipsContainer.querySelector('.studio-session-state').textContent=failed?'Needs attention':'Opening studio';
 }
 async function watchVideoSetup(){
- try{const data=await request('/api/clips/status');studioLoading(data.setup?.detail||'Preparing video tools…',data.setup?.state==='failed');if(data.setup?.state==='running')setTimeout(watchVideoSetup,2000);else if(data.setup?.state==='ready')await runClips();else if(data.setup?.state==='failed')toast(data.setup.detail)}catch(e){studioLoading(e.message,true)}
+ try{const data=await request('/api/clips/status');studioLoading(data.setup?.detail||'Preparing video tools…',data.setup?.state==='failed',data.setup?.diagnostics||'');if(data.setup?.state==='running')setTimeout(watchVideoSetup,2000);else if(data.setup?.state==='ready')await runClips();}catch(e){studioLoading(e.message,true)}
 }
 async function openWebLink(url){
  const parsed=new URL(url);if(!['https:','http:'].includes(parsed.protocol))return;
