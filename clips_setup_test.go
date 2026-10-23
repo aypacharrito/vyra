@@ -2,6 +2,8 @@ package main
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -59,5 +61,37 @@ func TestSetupDiagnosticsRetainPackageFailureWithoutCredentials(t *testing.T) {
 	output.Write([]byte("FINAL ERROR"))
 	if len(output.data) > 16000 || !strings.HasSuffix(string(output.data), "FINAL ERROR") {
 		t.Fatal("setup output is unbounded or lost error tail")
+	}
+}
+
+func TestPrivatePythonIgnoresIncompleteRepair(t *testing.T) {
+	dir := t.TempDir()
+	makeEnv := func(name string, ready bool) {
+		t.Helper()
+		base := filepath.Join(dir, name)
+		if err := os.MkdirAll(filepath.Join(base, "Scripts"), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(base, "Scripts", "python.exe"), []byte("test"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if ready {
+			if err := os.WriteFile(filepath.Join(base, ".vyra-ready"), []byte("verified"), 0600); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	makeEnv(".venv", false)
+	makeEnv(".venv-repair-300", false)
+	if got := privateClipsPython(dir); got != filepath.Join(dir, ".venv", "Scripts", "python.exe") {
+		t.Fatal(got)
+	}
+	makeEnv(".venv-repair-100", true)
+	makeEnv(".venv-repair-200", true)
+	if got := privateClipsPython(dir); got != filepath.Join(dir, ".venv-repair-200", "Scripts", "python.exe") {
+		t.Fatal(got)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".venv", "Scripts", "python.exe")); err != nil {
+		t.Fatal("old environment changed", err)
 	}
 }

@@ -22,7 +22,7 @@ import (
 //go:embed web/*
 var content embed.FS
 
-var version = "1.5.11"
+var version = "1.5.12"
 
 const clipsWorkerVersion = "0.6.6"
 
@@ -297,7 +297,7 @@ func (a *app) launchClips(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 503, map[string]string{"error": "Connect your OpenAI key in Settings before opening the Clips worker."})
 		return
 	}
-	exe := filepath.Join(workerDirectory(), ".venv", "Scripts", "python.exe")
+	exe := privateClipsPython(workerDirectory())
 	_, err = os.Stat(exe)
 	if err != nil {
 		exe, err = exec.LookPath("python")

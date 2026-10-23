@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -88,8 +89,31 @@ func selectSetupPython(candidates []setupPython, probe func(setupPython) ([]byte
 	}
 	return setupPython{}, errors.New("VYRA needs 64-bit Python 3.11, 3.12 or 3.13. Install 64-bit Python 3.12 from python.org, then choose Repair video tools. A 32-bit, missing or unsupported interpreter cannot install these video packages.")
 }
+
+// A completed generation is immutable: repairs never overwrite loaded DLLs.
+func privateClipsPython(dir string) string {
+	entries, _ := os.ReadDir(dir)
+	names := []string{}
+	for _, entry := range entries {
+		if entry.IsDir() && strings.HasPrefix(entry.Name(), ".venv-repair-") {
+			base := filepath.Join(dir, entry.Name())
+			if _, err := os.Stat(filepath.Join(base, ".vyra-ready")); err == nil {
+				if _, err = os.Stat(filepath.Join(base, "Scripts", "python.exe")); err == nil {
+					names = append(names, entry.Name())
+				}
+			}
+		}
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(names)))
+	name := ".venv"
+	if len(names) > 0 {
+		name = names[0]
+	}
+	return filepath.Join(dir, name, "Scripts", "python.exe")
+}
+
 func setupPythonCandidates(dir string) []setupPython {
-	candidates := []setupPython{{exe: filepath.Join(dir, ".venv", "Scripts", "python.exe")}}
+	candidates := []setupPython{{exe: privateClipsPython(dir)}}
 	if py, err := exec.LookPath("py"); err == nil {
 		for _, v := range []string{"-3.12-64", "-3.11-64", "-3.13-64", "-3.12", "-3.11", "-3.13"} {
 			candidates = append(candidates, setupPython{exe: py, prefix: []string{v}})
@@ -140,7 +164,7 @@ func openClipsSetup() error {
 			setupFailure("Preparing the video engine", err, nil)
 			return
 		}
-		venv := filepath.Join(dir, ".venv", "Scripts", "python.exe")
+		venv := privateClipsPython(dir)
 		if python.exe == venv {
 			if _, probeErr := runSetupCommand(ctx, dir, python, "-c", clipsProbeCode); probeErr == nil {
 				setupReport("ready", "Video tools verified. Opening your studio…")
@@ -148,24 +172,17 @@ func openClipsSetup() error {
 			}
 		}
 
-		if python.exe != venv {
-			// Keep the old environment as a backup; clips, queue and credentials live
-			// outside it. Never delete an environment or fall back to a global pip.
-			environment := filepath.Join(dir, ".venv")
-			if _, statErr := os.Stat(environment); statErr == nil {
-				backup := environment + "-before-repair-" + strconv.FormatInt(time.Now().UnixNano(), 10)
-				if err = os.Rename(environment, backup); err != nil {
-					setupFailure("Backing up the previous Python workspace", err, nil)
-					return
-				}
-			}
-			setupReport("running", "Creating a compatible private video workspace…")
-			output, createErr := runSetupCommand(ctx, dir, python, "-m", "venv", ".venv")
-			if createErr != nil {
-				setupFailure("Creating the Python workspace", createErr, output)
-				return
-			}
+		// Create beside the old environment, without renaming/deleting files that
+		// Windows, another worker or a security scanner may still have open.
+		environment := filepath.Join(dir, ".venv-repair-"+strconv.FormatInt(time.Now().UnixNano(), 10))
+		setupReport("running", "Creating a fresh private video workspace…")
+		output, createErr := runSetupCommand(ctx, dir, python, "-m", "venv", environment)
+		if createErr != nil {
+			setupFailure("Creating the Python workspace", createErr, output)
+			return
 		}
+		venv = filepath.Join(environment, "Scripts", "python.exe")
+
 		private := setupPython{exe: venv}
 		steps := []struct {
 			detail string
@@ -183,6 +200,10 @@ func openClipsSetup() error {
 				setupFailure(step.detail, stepErr, output)
 				return
 			}
+		}
+		if err := os.WriteFile(filepath.Join(environment, ".vyra-ready"), []byte("verified\n"), 0600); err != nil {
+			setupFailure("Activating the verified video workspace", err, nil)
+			return
 		}
 		setupReport("ready", "Video tools verified. Opening your studio…")
 	}()

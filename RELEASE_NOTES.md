@@ -1,3 +1,7 @@
+## 1.5.12
+
+Repair builds a fresh private Python environment instead of overwriting locked compiled packages (reported Brotli WinError 5). Only verified generations become launch candidates; incomplete repairs and old environments are retained. Heading tracking and subtitle sizing adjusted toward the concept. Native Windows repair execution remains unverified locally.
+
 # VYRA 1.5.11
 
 - Reworked the in-app package setup. A healthy private interpreter is reused even if global Python is unavailable. Broken, 32-bit and unsupported interpreters are skipped while checking installed 64-bit Python 3.11–3.13 launcher options.
