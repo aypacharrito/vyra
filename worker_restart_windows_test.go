@@ -32,6 +32,10 @@ func TestMain(m *testing.M) {
 			json.NewEncoder(w).Encode(map[string]string{"version": "0.6.5", "render_engine": "FFmpeg", "post_safety": "consent per destination"})
 		})
 		mux.HandleFunc("/api/queue", func(w http.ResponseWriter, r *http.Request) {
+			if os.Getenv("VYRA_TEST_QUEUE_ERROR") == "1" {
+				http.Error(w, "broken delivery metadata", 500)
+				return
+			}
 			if os.Getenv("VYRA_TEST_RESTART_BUSY") == "1" {
 				fmt.Fprint(w, `[{"status":"sending"}]`)
 			} else {
@@ -47,7 +51,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestWindowsWorkerRecoveryWithRealProcess(t *testing.T) {
-	for _, scenario := range []string{"idle_batch", "idle_desktop", "uploading", "unrecognized_command"} {
+	for _, scenario := range []string{"idle_batch", "idle_desktop", "uploading", "unrecognized_command", "queue_error", "recover_queue_error", "recover_uploading"} {
 		t.Run(scenario, func(t *testing.T) {
 			executable, err := os.Executable()
 			if err != nil {
@@ -76,8 +80,11 @@ func TestWindowsWorkerRecoveryWithRealProcess(t *testing.T) {
 			}
 			cmd := exec.Command(helper, args...)
 			cmd.Env = append(os.Environ(), "VYRA_TEST_RESTART_HELPER=1")
-			if scenario == "uploading" {
+			if strings.Contains(scenario, "uploading") {
 				cmd.Env = append(cmd.Env, "VYRA_TEST_RESTART_BUSY=1")
+			}
+			if strings.Contains(scenario, "queue_error") {
+				cmd.Env = append(cmd.Env, "VYRA_TEST_QUEUE_ERROR=1")
 			}
 			if err = cmd.Start(); err != nil {
 				t.Fatal(err)
@@ -98,8 +105,8 @@ func TestWindowsWorkerRecoveryWithRealProcess(t *testing.T) {
 			if !ready {
 				t.Fatal("fixture did not start")
 			}
-			err = stopLegacyWorkerAt(port)
-			if strings.HasPrefix(scenario, "idle_") {
+			err = stopLegacyWorkerWithRecovery(port, strings.HasPrefix(scenario, "recover_"))
+			if strings.HasPrefix(scenario, "idle_") || scenario == "recover_queue_error" {
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -110,7 +117,7 @@ func TestWindowsWorkerRecoveryWithRealProcess(t *testing.T) {
 				if err == nil {
 					t.Fatal("unsafe replacement was accepted")
 				}
-				if scenario == "uploading" && !strings.Contains(err.Error(), "still uploading") {
+				if scenario == "uploading" && !strings.Contains(err.Error(), "uploading") {
 					t.Fatal(err)
 				}
 				response, e := client.Get(url)

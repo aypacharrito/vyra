@@ -9,7 +9,7 @@ import (
 
 // Both the launcher and Windows replacement check use this list. Keeping a
 // second hard-coded list caused upgrades from 0.6.5 to fail on Windows.
-var legacyClipsVersions = []string{"0.3.0", "0.4.0", "0.5.0", "0.6.0", "0.6.1", "0.6.2", "0.6.3", "0.6.4", "0.6.5"}
+var legacyClipsVersions = []string{"0.3.0", "0.4.0", "0.5.0", "0.6.0", "0.6.1", "0.6.2", "0.6.3", "0.6.4", "0.6.5", "0.6.6"}
 
 func isLegacyClipsVersion(version string) bool {
 	for _, known := range legacyClipsVersions {

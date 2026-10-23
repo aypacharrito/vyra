@@ -22,9 +22,9 @@ import (
 //go:embed web/*
 var content embed.FS
 
-var version = "1.5.12"
+var version = "1.5.13"
 
-const clipsWorkerVersion = "0.6.6"
+const clipsWorkerVersion = "0.6.7"
 
 type app struct {
 	mu        sync.RWMutex
@@ -146,6 +146,7 @@ func (a *app) routes() http.Handler {
 	mux.HandleFunc("POST /api/updates/install", a.installUpdate)
 	mux.HandleFunc("POST /api/clips/launch", a.launchClips)
 	mux.HandleFunc("POST /api/clips/setup", a.setupClips)
+	mux.HandleFunc("POST /api/clips/restart", a.restartClips)
 	mux.HandleFunc("POST /api/open-external", a.openLink)
 	mux.HandleFunc("GET /api/clips/status", func(w http.ResponseWriter, r *http.Request) {
 		client := http.Client{Timeout: 1200 * time.Millisecond}
@@ -359,6 +360,26 @@ func (a *app) launchClips(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, 503, map[string]string{"error": "Clips could not start. Run SETUP_CLIPS.bat, verify Python dependencies and FFmpeg, then retry."})
+}
+
+func (a *app) restartClips(w http.ResponseWriter, r *http.Request) {
+	var consent struct {
+		Confirm bool `json:"confirm"`
+	}
+	if json.NewDecoder(io.LimitReader(r.Body, 1024)).Decode(&consent) != nil || !consent.Confirm {
+		writeJSON(w, 400, map[string]string{"error": "Confirm the session restart first."})
+		return
+	}
+	if !a.launchMu.TryLock() {
+		writeJSON(w, 409, map[string]string{"error": "Clips is opening. Try again shortly."})
+		return
+	}
+	defer a.launchMu.Unlock()
+	if err := recoverLegacyWorker(); err != nil {
+		writeJSON(w, 409, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, 200, map[string]bool{"restarted": true})
 }
 
 func (a *app) setupClips(w http.ResponseWriter, r *http.Request) {

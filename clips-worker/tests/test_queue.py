@@ -263,3 +263,14 @@ def test_processing_failure_keeps_uploaded_source(worker,monkeypatch):
     monkeypatch.setattr(worker,'process_video',fail)
     worker.do_job('a'*18,source,1,20,60)
     assert source.exists() and worker.JOBS['a'*18]['status']=='error'
+
+
+@pytest.mark.parametrize('state,active',[('approved',False),('sending',True),('submitting',True),('publishing',True),('submitted',False),('needs_review',False)])
+def test_restart_status_ignores_broken_delivery_metadata(worker,state,active):
+    seed(worker,state)
+    with worker.database() as conn:
+        conn.execute("INSERT INTO publishing_checks VALUES (?,?)",('post-one','invalid json'))
+    with TestClient(worker.app,base_url='http://127.0.0.1:8765') as client:
+        response=client.get('/api/restart-status')
+        assert response.status_code==200
+        assert response.json()=={'active':active}

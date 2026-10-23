@@ -6,3 +6,5 @@ html{scroll-behavior:smooth}body{background:#101112;font-family:'Segoe UI Variab
 
 /* Match the concept: lighter headline with a less compressed subtitle. */
 .studio-heading h1{letter-spacing:-.025em;font-weight:400}.studio-heading p{font-size:18px;line-height:1.45;margin-top:8px}
+
+.wrap,.embedded .wrap{max-width:none;padding:32px}.studio-heading{min-height:44px;align-items:center;margin-bottom:22px}.studio-heading h1{font:400 32px/1.15 Georgia,serif;letter-spacing:-.025em;margin:0}.heading-actions{padding-top:0}

@@ -110,7 +110,9 @@ func readWorkerJSON(client *http.Client, base, path string, destination any) err
 
 func stopLegacyWorker() error { return stopLegacyWorkerAt(8765) }
 
-func stopLegacyWorkerAt(port int) error {
+func recoverLegacyWorker() error        { return stopLegacyWorkerWithRecovery(8765, true) }
+func stopLegacyWorkerAt(port int) error { return stopLegacyWorkerWithRecovery(port, false) }
+func stopLegacyWorkerWithRecovery(port int, recoverUnreadable bool) error {
 	client := &http.Client{Timeout: 4 * time.Second}
 	base := "http://127.0.0.1:" + strconv.Itoa(port)
 	var identity struct {
@@ -151,17 +153,32 @@ func stopLegacyWorkerAt(port int) error {
 	if !isClipsWorkerCommand(args, port) {
 		return errors.New("The process on the Clips address is not a recognized VYRA video worker; it was left running")
 	}
-	var queue []struct {
-		Status string `json:"status"`
+	var busy struct {
+		Active *bool `json:"active"`
 	}
-	if err := readWorkerJSON(client, base, "/api/queue", &queue); err != nil {
-		return errors.New("Could not verify publishing status; the previous Clips session was left running")
-	}
-	for _, post := range queue {
-		if post.Status == "sending" || post.Status == "submitting" || post.Status == "publishing" {
-			return errors.New("A post is still uploading. Wait for it to finish, then try opening Clips again.")
+	statusErr := readWorkerJSON(client, base, "/api/restart-status", &busy)
+	if statusErr == nil && busy.Active != nil {
+		if *busy.Active {
+			return errors.New("A post is uploading. Wait for it to finish.")
+		}
+	} else {
+		var queue []struct {
+			Status string `json:"status"`
+		}
+		queueErr := readWorkerJSON(client, base, "/api/queue", &queue)
+		if queueErr != nil {
+			if !recoverUnreadable {
+				return fmt.Errorf("Video session needs a restart. Choose Restart session. Queue check: %v", queueErr)
+			}
+		} else {
+			for _, post := range queue {
+				if post.Status == "sending" || post.Status == "submitting" || post.Status == "publishing" {
+					return errors.New("A post is uploading. Wait for it to finish.")
+				}
+			}
 		}
 	}
+
 	owner, err := listeningWorkerPID(port)
 	if err != nil {
 		return err

@@ -1,3 +1,7 @@
+## 1.5.13
+
+Full brand remains visible at the top, including compact mode. Short Clips heading replaces the slogan; removes tagline, repeated labels and profile filler. Legacy queue failures expose confirmed session recovery, restricted to verified legacy worker processes in the current Windows session. Detected active uploads still block termination. Uncertain submissions retain needs_review on startup. New workers expose a lightweight database activity check independent of delivery metadata.
+
 ## 1.5.12
 
 Repair builds a fresh private Python environment instead of overwriting locked compiled packages (reported Brotli WinError 5). Only verified generations become launch candidates; incomplete repairs and old environments are retained. Heading tracking and subtitle sizing adjusted toward the concept. Native Windows repair execution remains unverified locally.

@@ -328,7 +328,7 @@ def asset(name:str):
 @app.get('/api/status')
 def status():
     refresh_desktop_connection()
-    return {'version':'0.6.6','ready':bool(os.getenv('OPENAI_API_KEY')),
+    return {'version':'0.6.7','ready':bool(os.getenv('OPENAI_API_KEY')),
             'platforms':publishing_accounts(), 'media':media_status(), 'render_engine':'FFmpeg','post_safety':'consent per destination'}
 
 
@@ -695,6 +695,14 @@ async def publish(req:Request):
 async def schedule(req:Request):
     record=await run_in_threadpool(make_post,await req.json(),True)
     return {'id':record['id'],'status':'approved','scheduled_at':record['scheduled_at']}
+
+
+@app.get('/api/restart-status')
+def restart_status():
+    # Avoid depending on delivery metadata or provider checks for activity.
+    with database() as conn:
+        active = conn.execute("SELECT 1 FROM postings WHERE status IN ('sending','submitting','publishing') LIMIT 1").fetchone() is not None
+    return {'active': active}
 
 
 @app.get('/api/queue')
