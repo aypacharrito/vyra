@@ -1,3 +1,9 @@
+# VYRA 1.5.7
+
+- Fixed the installed desktop shell returning 404 for `/studio.css`. The 1.5.6 package contained the redesign stylesheet, but the Go server did not expose its URL, so the old shell styling remained. The new explicit route serves its embedded CSS with the correct MIME type.
+- Added a regression test that reads the actual entry HTML and requests every referenced local asset through the real app router, checking exact embedded bytes and stylesheet MIME. The test reproduces the 1.5.6 failure and passes after this fix.
+- The Clips worker, scheduling, cleanup and existing three-section redesign are unchanged.
+
 # VYRA 1.5.6
 
 - Redesigned the app around Clips, Projects and AI Tasks. Removed Discover/Intelligence navigation, conversation controls and general-assistant entry points. Opens directly in Clips; saved workspace data remains available in backups.

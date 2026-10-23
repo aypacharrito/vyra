@@ -22,7 +22,7 @@ import (
 //go:embed web/*
 var content embed.FS
 
-var version = "1.5.6"
+var version = "1.5.7"
 
 const clipsWorkerVersion = "0.6.5"
 
@@ -83,6 +83,9 @@ func (a *app) routes() http.Handler {
 	})
 	mux.HandleFunc("GET /styles.css", func(w http.ResponseWriter, r *http.Request) {
 		serveEmbedded(w, "web/styles.css", "text/css; charset=utf-8")
+	})
+	mux.HandleFunc("GET /studio.css", func(w http.ResponseWriter, r *http.Request) {
+		serveEmbedded(w, "web/studio.css", "text/css; charset=utf-8")
 	})
 	for path, mime := range map[string]string{"icon.svg": "image/svg+xml", "icon.png": "image/png", "favicon.ico": "image/x-icon"} {
 		mux.HandleFunc("GET /"+path, func(w http.ResponseWriter, r *http.Request) {

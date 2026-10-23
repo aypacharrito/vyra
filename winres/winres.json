@@ -1,5 +1,5 @@
 {
   "RT_GROUP_ICON": { "APP": { "0000": "../web/favicon.ico" } },
   "RT_MANIFEST": { "#1": { "0409": { "description": "VYRA Clip Studio", "minimum-os": "win10", "execution-level": "as invoker", "dpi-awareness": "system", "use-common-controls-v6": true } } },
-  "RT_VERSION": { "#1": { "0000": { "fixed": { "file_version": "1.5.6.0", "product_version": "1.5.6.0" }, "info": { "0409": { "CompanyName": "VYRA", "FileDescription": "VYRA Clip Studio", "OriginalFilename": "VYRA.exe", "ProductName": "VYRA" } } } } }
+  "RT_VERSION": { "#1": { "0000": { "fixed": { "file_version": "1.5.7.0", "product_version": "1.5.7.0" }, "info": { "0409": { "CompanyName": "VYRA", "FileDescription": "VYRA Clip Studio", "OriginalFilename": "VYRA.exe", "ProductName": "VYRA" } } } } }
 }
