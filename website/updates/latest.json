@@ -1,6 +1,6 @@
 {
-  "version": "1.5.3",
-  "url": "https://vyra-five-lac.vercel.app/downloads/1.5.3/VYRA-Setup.exe",
-  "sha256": "f06f02b22d9247eda55613308838b9729659876139928a9588f2dc2db0aed252",
-  "notes": "Automatic cleanup after confirmed posting, durable Instagram processing, and private in-app video storage setup."
+  "version": "1.5.4",
+  "url": "https://vyra-five-lac.vercel.app/downloads/1.5.4/VYRA-Setup.exe",
+  "sha256": "072c8460ef6daacbe3cc56b0144e2f16fc9070a071da249cb8b62d39e0b7466a",
+  "notes": "Automatic AI post copy, suggested posting times, Public-only new posts, clip deletion and Instagram posting diagnostics."
 }
